@@ -1,0 +1,16 @@
+# 构建产物与本地数据
+server/target/
+server/data/
+android/.gradle/
+android/build/
+android/app/build/
+android/local.properties
+android/.idea/
+*.apk
+*.jar.original
+
+# 编辑器与系统文件
+.idea/
+.vscode/
+.DS_Store
+Thumbs.db

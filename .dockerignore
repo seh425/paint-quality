@@ -1,0 +1,8 @@
+android
+.git
+.gradle
+**/build
+server/target
+server/data
+**/*.apk
+**/*.jar.original

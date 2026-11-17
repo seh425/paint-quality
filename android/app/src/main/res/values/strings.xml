@@ -1,0 +1,15 @@
+<resources>
+    <string name="app_name">油漆车间5*5质量检查系统</string>
+    <string name="login">登录</string>
+    <string name="register">注册</string>
+    <string name="area">责任区域</string>
+    <string name="inspector_name">检查人</string>
+    <string name="logout">退出登录</string>
+    <string name="shared_records">共享记录</string>
+    <string name="admin">管理员</string>
+    <string name="scan">拍照识别</string>
+    <string name="previous">上一步</string>
+    <string name="next">下一辆</string>
+    <string name="upload">确认上传</string>
+    <string name="nok_note">NOK备注（必填）</string>
+</resources>

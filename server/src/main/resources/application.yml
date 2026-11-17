@@ -1,0 +1,44 @@
+spring:
+  application:
+    name: paint-quality-server
+  datasource:
+    url: "${DB_URL:jdbc:h2:file:${APP_DATA_DIR:./data}/paint-quality;AUTO_SERVER=TRUE}"
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+    hikari:
+      maximum-pool-size: ${DB_POOL_SIZE:5}
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: update
+    properties:
+      hibernate:
+        jdbc:
+          time_zone: Asia/Shanghai
+  servlet:
+    multipart:
+      max-file-size: 10MB
+      max-request-size: 10MB
+  jackson:
+    time-zone: Asia/Shanghai
+
+server:
+  port: ${PORT:8080}
+
+app:
+  data-dir: ${APP_DATA_DIR:./data}
+  zone-id: ${APP_ZONE_ID:Asia/Shanghai}
+  token-validity-days: ${APP_TOKEN_VALIDITY_DAYS:90}
+  cleanup-cron: ${APP_CLEANUP_CRON:0 0 1 * * *}
+  bootstrap-admin:
+    name: ${APP_BOOTSTRAP_ADMIN_NAME:师二虎}
+    area: ${APP_BOOTSTRAP_ADMIN_AREA:ADMIN}
+  feishu:
+    app-id: ${FEISHU_APP_ID:}
+    app-secret: ${FEISHU_APP_SECRET:}
+    default-receiver-open-id: ${FEISHU_DEFAULT_RECEIVER_OPEN_ID:}
+    base-url: ${FEISHU_BASE_URL:https://open.feishu.cn}
+
+logging:
+  level:
+    root: INFO

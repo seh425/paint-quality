@@ -1,0 +1,32 @@
+services:
+  - type: web
+    name: paint-quality-server
+    runtime: docker
+    plan: free
+    region: singapore
+    branch: main
+    autoDeploy: true
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: DB_URL
+        sync: false
+      - key: DB_USERNAME
+        sync: false
+      - key: DB_PASSWORD
+        sync: false
+      - key: DB_POOL_SIZE
+        value: "3"
+      - key: APP_DATA_DIR
+        value: /tmp/paint-quality
+      - key: APP_BOOTSTRAP_ADMIN_NAME
+        value: 师二虎
+      - key: APP_BOOTSTRAP_ADMIN_AREA
+        value: ADMIN
+      - key: FEISHU_APP_ID
+        sync: false
+      - key: FEISHU_APP_SECRET
+        sync: false
+      - key: FEISHU_DEFAULT_RECEIVER_OPEN_ID
+        sync: false

@@ -1,0 +1,9 @@
+<resources>
+    <color name="navy">#17365D</color>
+    <color name="blue">#2F5597</color>
+    <color name="white">#FFFFFF</color>
+    <color name="text_primary">#17202A</color>
+    <color name="surface_muted">#F3F6FA</color>
+    <color name="ok_green">#1B5E20</color>
+    <color name="nok_red">#B71C1C</color>
+</resources>

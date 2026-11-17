@@ -1,0 +1,155 @@
+<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:fillViewport="true">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="16dp">
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="管理员工作台"
+            android:textColor="@color/navy"
+            android:textSize="23sp"
+            android:textStyle="bold" />
+        <TextView
+            android:id="@+id/adminRoleText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="我的飞书Open ID"
+            android:textStyle="bold" />
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="feishuOpenId">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/adminFeishuInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="text"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+        <Button
+            android:id="@+id/saveFeishuButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="保存我的飞书Open ID" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="Excel日期（近3天）"
+            android:textStyle="bold" />
+        <Spinner
+            android:id="@+id/excelDateSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp" />
+        <Button
+            android:id="@+id/downloadExcelButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="下载Excel" />
+        <Button
+            android:id="@+id/sendFeishuButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="一键发送到我的飞书" />
+        <LinearLayout
+            android:id="@+id/primarySection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:text="一级管理员工具"
+                android:textColor="@color/navy"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+            <Button
+                android:id="@+id/chooseTemplateButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="选择xlsx模板" />
+            <TextView
+                android:id="@+id/selectedTemplateText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="尚未选择文件" />
+            <Button
+                android:id="@+id/uploadTemplateButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:enabled="false"
+                android:text="上传xlsx模板" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="注册人员管理"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/usersList"
+                android:layout_width="match_parent"
+                android:layout_height="360dp"
+                android:nestedScrollingEnabled="true" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="20dp"
+                android:text="维护车型代码及名称"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="新车型代码">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/newModelCodeInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapCharacters"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="新车型名称">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/newModelNameInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="text"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <Button
+                android:id="@+id/addModelButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="添加车型" />
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/modelsList"
+                android:layout_width="match_parent"
+                android:layout_height="360dp"
+                android:nestedScrollingEnabled="true" />
+        </LinearLayout>
+        <Button
+            android:id="@+id/adminBackButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="返回" />
+    </LinearLayout>
+</ScrollView>

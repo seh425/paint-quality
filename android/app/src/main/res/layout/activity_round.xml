@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:background="@color/surface_muted">
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:padding="16dp">
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/app_name"
+            android:textColor="@color/navy"
+            android:textSize="19sp"
+            android:textStyle="bold" />
+        <Button
+            android:id="@+id/logoutButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/logout" />
+    </LinearLayout>
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1">
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingLeft="16dp"
+            android:paddingRight="16dp"
+            android:paddingBottom="20dp">
+            <TextView
+                android:id="@+id/userSummaryText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:textSize="16sp" />
+            <TextView
+                android:id="@+id/workDateText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:layout_marginBottom="12dp"
+                android:textStyle="bold" />
+            <Button
+                android:id="@+id/sharedRecordsButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/shared_records" />
+            <Button
+                android:id="@+id/adminButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="管理员入口"
+                android:visibility="gone" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="18dp"
+                android:layout_marginBottom="6dp"
+                android:text="请选择检查轮次（每轮5辆）"
+                android:textColor="@color/navy"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+            <Button android:id="@+id/round1Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第一次  7:00-9:00" />
+            <Button android:id="@+id/round2Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第二次  9:00-11:00" />
+            <Button android:id="@+id/round3Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第三次  12:00-14:00" />
+            <Button android:id="@+id/round4Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第四次  14:00-16:00" />
+            <Button android:id="@+id/round5Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第五次  16:00-18:00" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
