@@ -226,7 +226,7 @@ class PaintQualityServerApplicationTests {
         expectInvalidBatch(owner, missingNokNote);
 
         ObjectNode wrongVehicleNumber = batch.deepCopy();
-        ((ObjectNode) wrongVehicleNumber.get("vehicles").get(0)).put("vehicleNumber", "000000");
+        ((ObjectNode) wrongVehicleNumber.get("vehicles").get(0)).put("vehicleNumber", "123");
         expectInvalidBatch(owner, wrongVehicleNumber);
 
         ObjectNode invalidVin = batch.deepCopy();

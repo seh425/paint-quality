@@ -107,14 +107,8 @@ public class QualityRecordService {
                 throw ApiException.badRequest("NA/OK状态不可填写问题备注");
             }
             String vin = input.vin().trim().toUpperCase(Locale.ROOT);
-            String vehicleNumber = input.vehicleNumber().trim().toUpperCase(Locale.ROOT);
-            if (!vin.isEmpty()) {
-                if (!LEGAL_VIN.matcher(vin).matches()) {
-                    throw ApiException.badRequest("非空VIN必须为合法的17位VIN");
-                }
-                if (!vin.substring(vin.length() - 6).equals(vehicleNumber)) {
-                    throw ApiException.badRequest("合法17位VIN的车号必须为VIN后6位");
-                }
+            if (!vin.isEmpty() && !LEGAL_VIN.matcher(vin).matches()) {
+                throw ApiException.badRequest("非空VIN必须为合法的17位VIN");
             }
         }
         if (positions.size() != 5 || !positions.containsAll(Set.of(1, 2, 3, 4, 5))) {

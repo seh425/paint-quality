@@ -37,8 +37,52 @@ public final class RecognitionParser {
         return value != null && VIN_PATTERN.matcher(value.toUpperCase(Locale.ROOT)).matches();
     }
 
-    public static String vehicleNumberFromVin(String vin) {
-        return isValidVin(vin) ? vin.substring(11).toUpperCase(Locale.ROOT) : "";
+    /**
+     * 找出条码正文：前6位为数字且总长不少于12位。
+     */
+    public static String barcodeCandidate(String... sources) {
+        if (sources == null) {
+            return "";
+        }
+        for (String source : sources) {
+            if (source == null) {
+                continue;
+            }
+            String whole = clean(source);
+            if (whole.length() <= 40 && whole.matches("\\d{6}[A-Z0-9]{6,}")) {
+                return whole;
+            }
+            for (String token : source.split("[^A-Za-z0-9]+")) {
+                String cleaned = token.toUpperCase(Locale.ROOT);
+                if (cleaned.matches("\\d{6}[A-Z0-9]{6,}")) {
+                    return cleaned;
+                }
+            }
+        }
+        return "";
+    }
+
+    /**
+     * 车号取条码内容的前6位。
+     */
+    public static String vehicleNumberFromBarcode(String barcode) {
+        String cleaned = clean(barcode);
+        return cleaned.length() >= 6 ? cleaned.substring(0, 6) : "";
+    }
+
+    /**
+     * 车型代码取条码内容的第11、12位。
+     */
+    public static String modelCodeFromBarcode(String barcode) {
+        String cleaned = clean(barcode);
+        return cleaned.length() >= 12 ? cleaned.substring(10, 12) : "";
+    }
+
+    private static String clean(String value) {
+        if (value == null) {
+            return "";
+        }
+        return value.toUpperCase(Locale.ROOT).replaceAll("[^A-Z0-9]", "");
     }
 
     public static String matchingModelCode(String text, List<String> serverCodes) {

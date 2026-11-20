@@ -28,9 +28,25 @@ public class SessionManager {
         }
         if (!normalized.regionMatches(true, 0, "http://", 0, 7)
                 && !normalized.regionMatches(true, 0, "https://", 0, 8)) {
-            normalized = "http://" + normalized;
+            normalized = (isLocalAddress(normalized) ? "http://" : "https://") + normalized;
         }
         return normalized.replaceAll("/+$", "") + "/";
+    }
+
+    private static boolean isLocalAddress(String value) {
+        String host = value;
+        int slash = host.indexOf('/');
+        if (slash >= 0) {
+            host = host.substring(0, slash);
+        }
+        int colon = host.indexOf(':');
+        if (colon >= 0) {
+            host = host.substring(0, colon);
+        }
+        if (host.equalsIgnoreCase("localhost")) {
+            return true;
+        }
+        return host.matches("\\d{1,3}(\\.\\d{1,3}){3}");
     }
 
     public synchronized String getBaseUrl() {

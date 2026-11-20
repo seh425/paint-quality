@@ -164,20 +164,24 @@ public class ScanActivity extends AppCompatActivity {
         Task<List<Barcode>> barcodeTask = barcodeScanner.process(image);
         Task<Text> textTask = textRecognizer.process(image);
         Tasks.whenAllComplete(barcodeTask, textTask).addOnCompleteListener(combined -> {
-            List<String> vinSources = new ArrayList<>();
+            List<String> barcodeValues = new ArrayList<>();
             if (barcodeTask.isSuccessful() && barcodeTask.getResult() != null) {
                 for (Barcode barcode : barcodeTask.getResult()) {
                     if (barcode.getRawValue() != null) {
-                        vinSources.add(barcode.getRawValue());
+                        barcodeValues.add(barcode.getRawValue());
                     }
                 }
             }
             String text = textTask.isSuccessful() && textTask.getResult() != null
                     ? textTask.getResult().getText() : "";
-            vinSources.add(text);
-            String vin = RecognitionParser.extractVin(vinSources.toArray(new String[0]));
-            String vehicleNumber = RecognitionParser.vehicleNumberFromVin(vin);
-            String modelCode = RecognitionParser.matchingModelCode(text, modelCodes);
+            String barcode = RecognitionParser.barcodeCandidate(
+                    barcodeValues.toArray(new String[0]));
+            if (barcode.isEmpty()) {
+                barcode = RecognitionParser.barcodeCandidate(text);
+            }
+            String vin = RecognitionParser.extractVin(text, barcode);
+            String vehicleNumber = RecognitionParser.vehicleNumberFromBarcode(barcode);
+            String modelCode = RecognitionParser.modelCodeFromBarcode(barcode);
             barcodeScanner.close();
             textRecognizer.close();
             photo.delete();
@@ -188,38 +192,14 @@ public class ScanActivity extends AppCompatActivity {
                 Toast.makeText(this, "条码和文本识别均失败", Toast.LENGTH_LONG).show();
                 return;
             }
-            if (modelCode.isEmpty()) {
-                String candidate = RecognitionParser.conservativeModelCode(text);
-                if (!candidate.isEmpty()) {
-                    confirmCandidate(vin, vehicleNumber, candidate);
-                    return;
-                }
-            }
-            if (vin.isEmpty() && modelCode.isEmpty()) {
+            if (vehicleNumber.isEmpty() && modelCode.isEmpty() && vin.isEmpty()) {
                 setRecognizing(false);
-                statusText.setText("未可靠识别到VIN或车型代码，请重拍或返回手输");
+                statusText.setText("未识别到条码车号、车型或VIN，请重拍或返回手输");
                 Toast.makeText(this, "未可靠识别，不会自动编造结果", Toast.LENGTH_LONG).show();
                 return;
             }
             deliverResult(vin, vehicleNumber, modelCode);
         });
-    }
-
-    private void confirmCandidate(String vin, String vehicleNumber, String candidate) {
-        setRecognizing(false);
-        new AlertDialog.Builder(this)
-                .setTitle("确认可能的车型代码")
-                .setMessage("文本中识别到“" + candidate + "”，但它不在服务端车型列表中。是否使用？")
-                .setPositiveButton("使用", (dialog, which) -> deliverResult(vin, vehicleNumber, candidate))
-                .setNegativeButton("不使用", (dialog, which) -> {
-                    if (!vin.isEmpty()) {
-                        deliverResult(vin, vehicleNumber, "");
-                    } else {
-                        statusText.setText("已忽略未确认代码，请重拍或返回手输");
-                    }
-                })
-                .setOnCancelListener(dialog -> statusText.setText("候选代码未确认，请重拍或返回手输"))
-                .show();
     }
 
     private void deliverResult(String vin, String vehicleNumber, String modelCode) {

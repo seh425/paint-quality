@@ -9,7 +9,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:padding="8dp"
-        android:text="拍摄VIN/车号及车型代码标识；照片仅在设备端识别"
+        android:text="对准条码标签拍照：前6位为车号，第11、12位为车型代码；照片仅在设备端识别"
         android:textColor="@color/white"
         android:textSize="16sp" />
     <androidx.camera.view.PreviewView
