@@ -62,8 +62,8 @@ public class FeishuService {
                     .header("Content-Type", "application/json; charset=UTF-8")
                     .POST(HttpRequest.BodyPublishers.ofString(body, StandardCharsets.UTF_8))
                     .build();
-            JsonNode  = execute(request, "获取飞书tenant_access_token");
-            String token = .path("tenant_access_token").asText();
+        JsonNode response = execute(request, "获取飞书tenant_access_token");
+            String token = response.path("tenant_access_token").asText();
             if (token.isBlank()) {
                 throw ApiException.badGateway("飞书未返回tenant_access_token");
             }
@@ -83,8 +83,8 @@ public class FeishuService {
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
                     .POST(HttpRequest.BodyPublishers.ofByteArray(body))
                     .build();
-            JsonNode  = execute(request, "上传飞书文件");
-            String fileKey = .path("data").path("file_key").asText();
+            JsonNode response = execute(request, "上传飞书文件");
+            String fileKey = response.path("data").path("file_key").asText();
             if (fileKey.isBlank()) {
                 throw ApiException.badGateway("飞书文件上传成功但未返回file_key");
             }
@@ -118,7 +118,7 @@ public class FeishuService {
     }
 
     private JsonNode execute(HttpRequest request, String action) {
-        Http<String> response;
+        HttpResponse<String> response;
         try {
             response = httpClient.send(request, HttpResponse.BodyHandlers.ofString(StandardCharsets.UTF_8));
         } catch (IOException exception) {
