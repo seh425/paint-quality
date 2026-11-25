@@ -77,7 +77,11 @@ public class FeishuService {
         String boundary = "----PaintQuality" + UUID.randomUUID();
         String filename = "quality-check-" + workDate + ".xlsx";
         try {
-            byte[] body = multipartBody(boundary, filename, Files.readAllBytes(workbook));
+            byte[] content = Files.readAllBytes(workbook);
+            if (content.length == 0) {
+                throw ApiException.badGateway("导出的Excel文件为空，无法发送到飞书");
+            }
+            byte[] body = multipartBody(boundary, filename, content);
             HttpRequest request = baseRequest("/open-apis/im/v1/files")
                     .header("Authorization", "Bearer " + accessToken)
                     .header("Content-Type", "multipart/form-data; boundary=" + boundary)
@@ -128,7 +132,12 @@ public class FeishuService {
             throw ApiException.badGateway(action + "被中断");
         }
         if (response.statusCode() < 200 || response.statusCode() >= 300) {
-            throw ApiException.badGateway(action + "失败，HTTP状态码: " + response.statusCode());
+            String detail = response.body();
+            if (detail != null && detail.length() > 300) {
+                detail = detail.substring(0, 300);
+            }
+            throw ApiException.badGateway(action + "失败，HTTP状态码: " + response.statusCode()
+                    + (detail == null || detail.isBlank() ? "" : "，返回: " + detail));
         }
         JsonNode root;
         try {
@@ -149,7 +158,7 @@ public class FeishuService {
 
     private byte[] multipartBody(String boundary, String filename, byte[] file) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        writeTextPart(output, boundary, "file_type", "xls");
+        writeTextPart(output, boundary, "file_type", "stream");
         writeTextPart(output, boundary, "file_name", filename);
         write(output, "--" + boundary + "\r\n");
         write(output, "Content-Disposition: form-data; name=\"file\"; filename=\"" + filename + "\"\r\n");
