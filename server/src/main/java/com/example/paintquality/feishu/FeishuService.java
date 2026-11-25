@@ -149,7 +149,7 @@ public class FeishuService {
 
     private byte[] multipartBody(String boundary, String filename, byte[] file) throws IOException {
         ByteArrayOutputStream output = new ByteArrayOutputStream();
-        writeTextPart(output, boundary, "file_type", "xls");
+        writeTextPart(output, boundary, "file_type", "stream");
         writeTextPart(output, boundary, "file_name", filename);
         write(output, "--" + boundary + "\r\n");
         write(output, "Content-Disposition: form-data; name=\"file\"; filename=\"" + filename + "\"\r\n");
