@@ -105,6 +105,13 @@ class PaintQualityServerApplicationTests {
     }
 
     @Test
+    void healthEndpointIsPublic() throws Exception {
+        mockMvc.perform(get("/api/health"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.status").value("UP"));
+    }
+
+    @Test
     void registerLoginMeAndLogoutWork() throws Exception {
         Session admin = login("admin", "ADMIN");
         Session registered = register("检查人甲");
