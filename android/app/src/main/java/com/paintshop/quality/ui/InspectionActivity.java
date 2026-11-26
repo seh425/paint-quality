@@ -16,6 +16,9 @@ import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.textfield.MaterialAutoCompleteTextView;
 import com.google.android.material.textfield.TextInputLayout;
@@ -27,7 +30,6 @@ import com.paintshop.quality.model.DraftVehicle;
 import com.paintshop.quality.model.InspectionDraft;
 import com.paintshop.quality.model.InspectionRecord;
 import com.paintshop.quality.model.VehicleModel;
-import com.paintshop.quality.util.RecognitionParser;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
@@ -36,6 +38,7 @@ import java.util.Locale;
 
 public class InspectionActivity extends AppCompatActivity {
     public static final String EXTRA_ROUND = "roundNumber";
+    public static final String EXTRA_ROUND_LABEL = "roundLabel";
     public static final String EXTRA_DATE = "workDate";
 
     private ApiClient apiClient;
@@ -55,7 +58,6 @@ public class InspectionActivity extends AppCompatActivity {
     private RadioGroup lineGroup;
     private RadioButton line1Button;
     private RadioButton line2Button;
-    private EditText vinInput;
     private EditText vehicleNumberInput;
     private MaterialAutoCompleteTextView modelNameDropdown;
     private TextInputLayout modelNameLayout;
@@ -68,13 +70,16 @@ public class InspectionActivity extends AppCompatActivity {
     private Button previousButton;
     private Button nextButton;
     private Button scanButton;
+    private Button batchScanButton;
     private Button refreshModelsButton;
     private ActivityResultLauncher<Intent> scanLauncher;
+    private ActivityResultLauncher<Intent> batchScanLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_inspection);
+        applyWindowInsets();
         SessionManager sessionManager = new SessionManager(this);
         if (!sessionManager.hasSession()) {
             finish();
@@ -89,8 +94,9 @@ public class InspectionActivity extends AppCompatActivity {
             workDate = LocalDate.now().toString();
         }
         bindViews();
-        ((TextView) findViewById(R.id.inspectionTitleText)).setText(roundTitle(roundNumber));
-        ((TextView) findViewById(R.id.inspectionDateText)).setText("日期：" + workDate + "（每轮恰好5辆）");
+        String roundLabel = getIntent().getStringExtra(EXTRA_ROUND_LABEL);
+        ((TextView) findViewById(R.id.inspectionTitleText)).setText(
+                roundLabel == null || roundLabel.isEmpty() ? roundTitle(roundNumber) : roundLabel);        ((TextView) findViewById(R.id.inspectionDateText)).setText("日期：" + workDate + "（每轮恰好5辆）");
         loadDraft(1);
         bindVehicle();
         installListeners();
@@ -100,6 +106,21 @@ public class InspectionActivity extends AppCompatActivity {
                         applyScanResult(result.getData());
                     }
                 });
+        batchScanLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        applyBatchScanResult(result.getData());
+                    }
+                });
+    }
+
+    private void applyWindowInsets() {
+        View content = findViewById(android.R.id.content);
+        ViewCompat.setOnApplyWindowInsetsListener(content, (view, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return insets;
+        });
     }
 
     @Override
@@ -120,7 +141,6 @@ public class InspectionActivity extends AppCompatActivity {
         lineGroup = findViewById(R.id.lineGroup);
         line1Button = findViewById(R.id.line1Button);
         line2Button = findViewById(R.id.line2Button);
-        vinInput = findViewById(R.id.vinInput);
         vehicleNumberInput = findViewById(R.id.vehicleNumberInput);
         modelNameDropdown = findViewById(R.id.modelNameDropdown);
         modelNameLayout = findViewById(R.id.modelNameLayout);
@@ -133,6 +153,7 @@ public class InspectionActivity extends AppCompatActivity {
         previousButton = findViewById(R.id.previousButton);
         nextButton = findViewById(R.id.nextButton);
         scanButton = findViewById(R.id.scanButton);
+        batchScanButton = findViewById(R.id.batchScanButton);
         refreshModelsButton = findViewById(R.id.refreshModelsButton);
     }
 
@@ -146,7 +167,6 @@ public class InspectionActivity extends AppCompatActivity {
                 }
             }
         };
-        vinInput.addTextChangedListener(watcher);
         vehicleNumberInput.addTextChangedListener(watcher);
         issueNoteInput.addTextChangedListener(watcher);
         modelNameDropdown.setOnItemClickListener((parent, view, position, id) -> {
@@ -199,6 +219,21 @@ public class InspectionActivity extends AppCompatActivity {
             intent.putStringArrayListExtra(ScanActivity.EXTRA_MODEL_CODES, codes);
             scanLauncher.launch(intent);
         });
+        batchScanButton.setOnClickListener(view -> {
+            if (uploading) {
+                return;
+            }
+            Intent intent = new Intent(this, ScanActivity.class);
+            intent.putExtra(ScanActivity.EXTRA_BATCH, true);
+            ArrayList<String> codes = new ArrayList<>();
+            for (VehicleModel model : models) {
+                if (model.active) {
+                    codes.add(model.code);
+                }
+            }
+            intent.putStringArrayListExtra(ScanActivity.EXTRA_MODEL_CODES, codes);
+            batchScanLauncher.launch(intent);
+        });
         refreshModelsButton.setOnClickListener(view -> loadModels(true));
     }
 
@@ -234,7 +269,6 @@ public class InspectionActivity extends AppCompatActivity {
         binding = true;
         DraftVehicle vehicle = draft.vehicles.get(currentIndex);
         positionText.setText("第" + (currentIndex + 1) + "/5辆（车位" + vehicle.vehiclePosition + "）");
-        vinInput.setText(nullToEmpty(vehicle.vin));
         vehicleNumberInput.setText(nullToEmpty(vehicle.vehicleNumber));
         modelNameDropdown.setText(nullToEmpty(vehicle.vehicleModel), false);
         issueNoteInput.setText(nullToEmpty(vehicle.issueNote));
@@ -253,11 +287,11 @@ public class InspectionActivity extends AppCompatActivity {
     }
 
     private void saveCurrentVehicle() {
-        if (submitted || draft == null || vinInput == null) {
+        if (submitted || draft == null || vehicleNumberInput == null) {
             return;
         }
         DraftVehicle vehicle = draft.vehicles.get(currentIndex);
-        vehicle.vin = vinInput.getText().toString().trim().toUpperCase(Locale.ROOT);
+        vehicle.vin = "";
         vehicle.vehicleNumber = vehicleNumberInput.getText().toString().trim().toUpperCase(Locale.ROOT);
         String selectedName = modelNameDropdown.getText().toString().trim();
         vehicle.vehicleModel = selectedName;
@@ -284,9 +318,6 @@ public class InspectionActivity extends AppCompatActivity {
     }
 
     private String validationError(DraftVehicle vehicle) {
-        if (!nullToEmpty(vehicle.vin).isEmpty() && !RecognitionParser.isValidVin(vehicle.vin)) {
-            return "VIN须为17位，且不能包含I/O/Q";
-        }
         String vehicleNumber = nullToEmpty(vehicle.vehicleNumber).trim();
         if (vehicleNumber.isEmpty()) {
             return "请填写车号";
@@ -313,10 +344,7 @@ public class InspectionActivity extends AppCompatActivity {
         if (error.isEmpty()) {
             return true;
         }
-        if (error.contains("VIN")) {
-            vinInput.setError(error);
-            vinInput.requestFocus();
-        } else if (error.contains("车号")) {
+        if (error.contains("车号")) {
             vehicleNumberInput.setError(error);
             vehicleNumberInput.requestFocus();
         } else if (error.contains("车型")) {
@@ -375,6 +403,7 @@ public class InspectionActivity extends AppCompatActivity {
         nextButton.setText(value ? "正在上传…" : (currentIndex == 4 ? "确认上传" : "下一辆"));
         previousButton.setEnabled(!value && currentIndex > 0);
         scanButton.setEnabled(!value);
+        batchScanButton.setEnabled(!value);
         refreshModelsButton.setEnabled(!value);
         line1Button.setEnabled(!value);
         line2Button.setEnabled(!value);
@@ -382,12 +411,8 @@ public class InspectionActivity extends AppCompatActivity {
 
     private void applyScanResult(Intent data) {
         DraftVehicle vehicle = draft.vehicles.get(currentIndex);
-        String vin = nullToEmpty(data.getStringExtra(ScanActivity.RESULT_VIN));
         String number = nullToEmpty(data.getStringExtra(ScanActivity.RESULT_VEHICLE_NUMBER));
         String code = nullToEmpty(data.getStringExtra(ScanActivity.RESULT_MODEL_CODE));
-        if (!vin.isEmpty()) {
-            vehicle.vin = vin;
-        }
         if (!number.isEmpty()) {
             vehicle.vehicleNumber = number;
         }
@@ -412,6 +437,50 @@ public class InspectionActivity extends AppCompatActivity {
         bindVehicle();
         Toast.makeText(this, "已按条码填充车号、车型，请核对并补充其余字段",
                 Toast.LENGTH_LONG).show();
+    }
+
+    private void applyBatchScanResult(Intent data) {
+        ArrayList<String> numbers = data.getStringArrayListExtra(ScanActivity.RESULT_VEHICLE_NUMBERS);
+        ArrayList<String> codes = data.getStringArrayListExtra(ScanActivity.RESULT_MODEL_CODE_LIST);
+        int count = numbers == null ? 0 : numbers.size();
+        if (count == 0) {
+            Toast.makeText(this, "没有识别到任何条码，请确认照片清晰且包含完整条码",
+                    Toast.LENGTH_LONG).show();
+            return;
+        }
+        int filled = Math.min(5, count);
+        int unresolved = 0;
+        for (int i = 0; i < filled; i++) {
+            DraftVehicle vehicle = draft.vehicles.get(i);
+            String number = nullToEmpty(numbers.get(i));
+            String code = codes != null && i < codes.size() ? nullToEmpty(codes.get(i)) : "";
+            if (!number.isEmpty()) {
+                vehicle.vehicleNumber = number;
+            }
+            vehicle.modelCode = "";
+            vehicle.vehicleModel = "";
+            if (!code.isEmpty()) {
+                for (VehicleModel model : models) {
+                    if (model.active && code.equalsIgnoreCase(model.code)) {
+                        vehicle.modelCode = model.code;
+                        vehicle.vehicleModel = model.modelName;
+                        break;
+                    }
+                }
+                if (vehicle.modelCode.isEmpty()) {
+                    unresolved++;
+                }
+            }
+        }
+        currentIndex = 0;
+        draft.currentIndex = 0;
+        draftStore.save(userKey, draft);
+        bindVehicle();
+        String message = "已批量识别 " + filled + " 张，请逐车核对";
+        if (unresolved > 0) {
+            message += "；其中 " + unresolved + " 辆车型代码不在车型库中，请让管理员添加后刷新";
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
     }
 
     private void loadModels(boolean notify) {

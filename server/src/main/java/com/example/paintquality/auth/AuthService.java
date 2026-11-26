@@ -20,6 +20,8 @@ import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.Base64;
 import java.util.HexFormat;
+import java.util.List;
+import java.util.Optional;
 
 @Service
 public class AuthService {
@@ -41,16 +43,18 @@ public class AuthService {
     @Transactional
     public AuthResponse register(AuthRequest request) {
         String name = UserValues.name(request.inspectorName());
-        String area = UserValues.area(request.area());
-        if (userRepository.existsByInspectorNameAndArea(name, area)) {
-            throw ApiException.conflict("该姓名和区域已注册");
+        boolean exists = userRepository.findAllByInspectorName(name).stream()
+                .anyMatch(user -> !user.isDeleted());
+        if (exists) {
+            throw ApiException.conflict("该检查人姓名已注册");
         }
 
-        InspectorUser user = new InspectorUser(name, area, Role.USER, true);
+        InspectorUser user = new InspectorUser(name, "", Role.USER, false);
+        user.setCheckArea(UserValues.checkArea(request.checkArea()));
         try {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {
-            throw ApiException.conflict("该姓名和区域已注册");
+            throw ApiException.conflict("该检查人姓名已注册");
         }
         return issueToken(user);
     }
@@ -59,11 +63,33 @@ public class AuthService {
     public AuthResponse login(AuthRequest request) {
         String name = UserValues.name(request.inspectorName());
         String area = UserValues.area(request.area());
-        InspectorUser user = userRepository.findByInspectorNameAndArea(name, area)
-                .orElseThrow(() -> ApiException.unauthorized("检查人姓名或区域不正确"));
-        if (!user.isEnabled()) {
-            throw ApiException.forbidden("该用户已被禁用");
+        String checkArea = UserValues.checkArea(request.checkArea());
+        List<InspectorUser> candidates = userRepository.findAllByInspectorName(name).stream()
+                .filter(user -> !user.isDeleted())
+                .toList();
+        if (candidates.isEmpty()) {
+            throw ApiException.unauthorized("检查人姓名未注册");
         }
+        InspectorUser user;
+        if (candidates.size() == 1) {
+            user = candidates.get(0);
+        } else {
+            user = candidates.stream()
+                    .filter(candidate -> area.equals(candidate.getArea()))
+                    .findFirst()
+                    .or(() -> checkArea == null ? Optional.empty() : candidates.stream()
+                            .filter(candidate -> checkArea.equals(candidate.getCheckArea()))
+                            .findFirst())
+                    .orElseThrow(() -> ApiException.unauthorized("存在同名账号，请联系管理员"));
+        }
+        if (!user.isEnabled()) {
+            throw ApiException.forbidden("账号尚未通过管理员审核或已被禁用");
+        }
+        user.setArea(area);
+        if (checkArea != null) {
+            user.setCheckArea(checkArea);
+        }
+        userRepository.save(user);
         return issueToken(user);
     }
 

@@ -19,9 +19,9 @@ public class ProfileController {
         this.userService = userService;
     }
 
-    @PutMapping("/feishu")
-    public UserResponse updateFeishu(@CurrentUser InspectorUser user,
-                                     @Valid @RequestBody FeishuProfileRequest request) {
-        return userService.updateOwnFeishuOpenId(user.getId(), request.feishuOpenId());
+    @PutMapping("/email")
+    public UserResponse updateEmail(@CurrentUser InspectorUser user,
+                                    @Valid @RequestBody EmailProfileRequest request) {
+        return userService.updateOwnEmail(user.getId(), request.email());
     }
 }

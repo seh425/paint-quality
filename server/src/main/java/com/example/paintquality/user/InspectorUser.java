@@ -35,6 +35,15 @@ public class InspectorUser {
     @Column(name = "feishu_open_id", length = 128)
     private String feishuOpenId;
 
+    @Column(name = "check_area", length = 50)
+    private String checkArea;
+
+    @Column(length = 128)
+    private String email;
+
+    @Column(name = "deleted_flag")
+    private Boolean deleted = false;
+
     protected InspectorUser() {
     }
 
@@ -87,5 +96,29 @@ public class InspectorUser {
 
     public void setFeishuOpenId(String feishuOpenId) {
         this.feishuOpenId = feishuOpenId;
+    }
+
+    public String getCheckArea() {
+        return checkArea;
+    }
+
+    public void setCheckArea(String checkArea) {
+        this.checkArea = checkArea;
+    }
+
+    public String getEmail() {
+        return email;
+    }
+
+    public void setEmail(String email) {
+        this.email = email;
+    }
+
+    public boolean isDeleted() {
+        return Boolean.TRUE.equals(deleted);
+    }
+
+    public void setDeleted(boolean deleted) {
+        this.deleted = deleted;
     }
 }

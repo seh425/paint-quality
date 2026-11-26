@@ -13,10 +13,13 @@
         <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="责任区域">
             <com.google.android.material.textfield.TextInputEditText android:id="@+id/editUserAreaInput" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
-        <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="飞书Open ID">
-            <com.google.android.material.textfield.TextInputEditText android:id="@+id/editUserFeishuInput" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="1" />
+        <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="检查区域">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/editUserCheckAreaInput" android:layout_width="match_parent" android:layout_height="wrap_content" android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
-        <TextView android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="角色（仅可设二级管理员或普通用户）" />
+        <com.google.android.material.textfield.TextInputLayout android:layout_width="match_parent" android:layout_height="wrap_content" android:hint="邮箱">
+            <com.google.android.material.textfield.TextInputEditText android:id="@+id/editUserEmailInput" android:layout_width="match_parent" android:layout_height="wrap_content" android:inputType="textEmailAddress" android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+        <TextView android:id="@+id/editUserRoleLabel" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="角色（仅一级管理员可设置）" />
         <Spinner android:id="@+id/editUserRoleSpinner" android:layout_width="match_parent" android:layout_height="48dp" />
         <CheckBox android:id="@+id/editUserEnabledCheck" android:layout_width="match_parent" android:layout_height="wrap_content" android:text="账号启用" />
     </LinearLayout>

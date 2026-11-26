@@ -60,7 +60,7 @@ public class ExcelService {
         return List.of(today, today.minusDays(1), today.minusDays(2));
     }
 
-    public Path generate(LocalDate workDate) {
+    public Path generate(LocalDate workDate, String area) {
         validateDate(workDate);
         List<QualityRecord> records = recordService.findDayEntities(workDate);
         Path temporary = null;
@@ -68,7 +68,7 @@ public class ExcelService {
             Files.createDirectories(exportDirectory);
             Path target = exportDirectory.resolve(workDate + ".xlsx");
             temporary = Files.createTempFile(exportDirectory, workDate + "-", ".xlsx");
-            try (InputStream input = new ByteArrayInputStream(templateService.currentContent());
+            try (InputStream input = new ByteArrayInputStream(templateService.effectiveTemplate(area));
                  Workbook workbook = WorkbookFactory.create(input)) {
                 Sheet sheet = workbook.getSheet(TemplateService.SHEET_NAME);
                 if (sheet == null) {

@@ -24,24 +24,24 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="我的飞书Open ID"
+            android:text="我的邮箱（接收检查记录）"
             android:textStyle="bold" />
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:hint="feishuOpenId">
+            android:hint="邮箱地址">
             <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/adminFeishuInput"
+                android:id="@+id/adminEmailInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text"
+                android:inputType="textEmailAddress"
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
         <Button
-            android:id="@+id/saveFeishuButton"
+            android:id="@+id/saveEmailButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="保存我的飞书Open ID" />
+            android:text="保存我的邮箱" />
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -58,10 +58,43 @@
             android:layout_height="wrap_content"
             android:text="下载Excel" />
         <Button
-            android:id="@+id/sendFeishuButton"
+            android:id="@+id/sendEmailButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="一键发送到我的飞书" />
+            android:text="一键发送到我的邮箱" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="22dp"
+            android:text="检查模板（按责任区域上传）"
+            android:textColor="@color/navy"
+            android:textSize="20sp"
+            android:textStyle="bold" />
+        <Spinner
+            android:id="@+id/templateAreaSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp" />
+        <TextView
+            android:id="@+id/templateAreaText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp" />
+        <Button
+            android:id="@+id/chooseTemplateButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="选择xlsx模板" />
+        <TextView
+            android:id="@+id/selectedTemplateText"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="尚未选择文件" />
+        <Button
+            android:id="@+id/uploadTemplateButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:enabled="false"
+            android:text="上传xlsx模板" />
         <LinearLayout
             android:id="@+id/primarySection"
             android:layout_width="match_parent"
@@ -72,26 +105,10 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
-                android:text="一级管理员工具"
+                android:text="人员与车型管理"
                 android:textColor="@color/navy"
                 android:textSize="20sp"
                 android:textStyle="bold" />
-            <Button
-                android:id="@+id/chooseTemplateButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="选择xlsx模板" />
-            <TextView
-                android:id="@+id/selectedTemplateText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:text="尚未选择文件" />
-            <Button
-                android:id="@+id/uploadTemplateButton"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:enabled="false"
-                android:text="上传xlsx模板" />
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"

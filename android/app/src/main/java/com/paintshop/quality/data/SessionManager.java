@@ -12,6 +12,11 @@ public class SessionManager {
     private static final String TOKEN = "token";
     private static final String USER = "user";
     private static final String BASE_URL = "base_url";
+    private static final String LAST_AREA = "last_area";
+    private static final String LAST_CHECK_AREA = "last_check_area";
+    private static final String LAST_NAME = "last_name";
+    private static final String LAST_ROLE = "last_role";
+    private static final String BASE_CONFIGURED = "base_configured";
 
     private final SharedPreferences preferences;
     private final Gson gson = new Gson();
@@ -54,11 +59,51 @@ public class SessionManager {
     }
 
     public synchronized void saveBaseUrl(String baseUrl) {
-        preferences.edit().putString(BASE_URL, normalizeBaseUrl(baseUrl)).apply();
+        preferences.edit()
+                .putString(BASE_URL, normalizeBaseUrl(baseUrl))
+                .putBoolean(BASE_CONFIGURED, true)
+                .apply();
+    }
+
+    public synchronized boolean isBaseConfigured() {
+        return preferences.getBoolean(BASE_CONFIGURED, false);
+    }
+
+    public synchronized String getLastName() {
+        return preferences.getString(LAST_NAME, "");
+    }
+
+    public synchronized void saveLastName(String name) {
+        preferences.edit().putString(LAST_NAME, name == null ? "" : name).apply();
+    }
+
+    public synchronized String getLastRole() {
+        return preferences.getString(LAST_ROLE, "");
+    }
+
+    public synchronized String getLastArea() {
+        return preferences.getString(LAST_AREA, "");
+    }
+
+    public synchronized void saveLastArea(String area) {
+        preferences.edit().putString(LAST_AREA, area == null ? "" : area).apply();
+    }
+
+    public synchronized String getLastCheckArea() {
+        return preferences.getString(LAST_CHECK_AREA, "");
+    }
+
+    public synchronized void saveLastCheckArea(String checkArea) {
+        preferences.edit().putString(LAST_CHECK_AREA, checkArea == null ? "" : checkArea).apply();
     }
 
     public synchronized void saveAuth(String token, User user) {
-        preferences.edit().putString(TOKEN, token).putString(USER, gson.toJson(user)).apply();
+        preferences.edit()
+                .putString(TOKEN, token)
+                .putString(USER, gson.toJson(user))
+                .putString(LAST_ROLE, user == null ? "" : user.role)
+                .putString(LAST_NAME, user == null ? "" : user.inspectorName)
+                .apply();
     }
 
     public synchronized void updateUser(User user) {

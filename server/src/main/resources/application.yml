@@ -2,11 +2,12 @@ spring:
   application:
     name: paint-quality-server
   datasource:
-    url: "${DB_URL:jdbc:h2:file:${APP_DATA_DIR:./data}/paint-quality;AUTO_SERVER=TRUE}"
-    username: ${DB_USERNAME:sa}
-    password: ${DB_PASSWORD:}
+    url: "jdbc:h2:file:${APP_DATA_DIR:./data}/paint-quality;AUTO_SERVER=TRUE"
+    driver-class-name: org.h2.Driver
+    username: sa
+    password: ${APP_DB_PASSWORD:}
     hikari:
-      maximum-pool-size: ${DB_POOL_SIZE:5}
+      maximum-pool-size: 10
   jpa:
     open-in-view: false
     hibernate:
@@ -23,7 +24,7 @@ spring:
     time-zone: Asia/Shanghai
 
 server:
-  port: ${PORT:8080}
+  port: 8080
 
 app:
   data-dir: ${APP_DATA_DIR:./data}
@@ -31,13 +32,8 @@ app:
   token-validity-days: ${APP_TOKEN_VALIDITY_DAYS:90}
   cleanup-cron: ${APP_CLEANUP_CRON:0 0 1 * * *}
   bootstrap-admin:
-    name: ${APP_BOOTSTRAP_ADMIN_NAME:师二虎}
+    name: ${APP_BOOTSTRAP_ADMIN_NAME:admin}
     area: ${APP_BOOTSTRAP_ADMIN_AREA:ADMIN}
-  feishu:
-    app-id: ${FEISHU_APP_ID:}
-    app-secret: ${FEISHU_APP_SECRET:}
-    default-receiver-open-id: ${FEISHU_DEFAULT_RECEIVER_OPEN_ID:}
-    base-url: ${FEISHU_BASE_URL:https://open.feishu.cn}
 
 logging:
   level:

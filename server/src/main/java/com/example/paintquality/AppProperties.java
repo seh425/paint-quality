@@ -10,7 +10,6 @@ public class AppProperties {
     private long tokenValidityDays = 90;
     private String cleanupCron = "0 0 1 * * *";
     private final BootstrapAdmin bootstrapAdmin = new BootstrapAdmin();
-    private final Feishu feishu = new Feishu();
 
     public String getDataDir() {
         return dataDir;
@@ -48,10 +47,6 @@ public class AppProperties {
         return bootstrapAdmin;
     }
 
-    public Feishu getFeishu() {
-        return feishu;
-    }
-
     public static class BootstrapAdmin {
         private String name = "admin";
         private String area = "ADMIN";
@@ -70,45 +65,6 @@ public class AppProperties {
 
         public void setArea(String area) {
             this.area = area;
-        }
-    }
-
-    public static class Feishu {
-        private String appId = "";
-        private String appSecret = "";
-        private String defaultReceiverOpenId = "";
-        private String baseUrl = "https://open.feishu.cn";
-
-        public String getAppId() {
-            return appId;
-        }
-
-        public void setAppId(String appId) {
-            this.appId = appId;
-        }
-
-        public String getAppSecret() {
-            return appSecret;
-        }
-
-        public void setAppSecret(String appSecret) {
-            this.appSecret = appSecret;
-        }
-
-        public String getDefaultReceiverOpenId() {
-            return defaultReceiverOpenId;
-        }
-
-        public void setDefaultReceiverOpenId(String defaultReceiverOpenId) {
-            this.defaultReceiverOpenId = defaultReceiverOpenId;
-        }
-
-        public String getBaseUrl() {
-            return baseUrl;
-        }
-
-        public void setBaseUrl(String baseUrl) {
-            this.baseUrl = baseUrl;
         }
     }
 }

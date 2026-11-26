@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:fillViewport="true"
@@ -28,6 +29,7 @@
             android:text="检查人登录"
             android:textSize="17sp" />
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/serverAddressLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:hint="服务器地址（由管理员提供）">
@@ -51,15 +53,33 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/areaLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:hint="@string/area">
-            <com.google.android.material.textfield.TextInputEditText
+            android:hint="责任区域（下拉选择）"
+            app:endIconMode="dropdown_menu">
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
                 android:id="@+id/areaInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:inputType="text"
+                android:maxLines="1" />
+        </com.google.android.material.textfield.TextInputLayout>
+        <com.google.android.material.textfield.TextInputLayout
+            android:id="@+id/checkAreaLayout"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:hint="检查区域（下拉选择）"
+            app:endIconMode="dropdown_menu">
+            <com.google.android.material.textfield.MaterialAutoCompleteTextView
+                android:id="@+id/checkAreaInput"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:clickable="true"
+                android:focusable="false"
+                android:inputType="none"
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
         <ProgressBar

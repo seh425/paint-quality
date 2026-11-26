@@ -60,19 +60,27 @@
                 android:text="管理员入口"
                 android:visibility="gone" />
             <TextView
+                android:id="@+id/roundsHint"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="18dp"
                 android:layout_marginBottom="6dp"
-                android:text="请选择检查轮次（每轮5辆）"
+                android:text="正在读取检查轮次…"
                 android:textColor="@color/navy"
                 android:textSize="18sp"
                 android:textStyle="bold" />
-            <Button android:id="@+id/round1Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第一次  7:00-9:00" />
-            <Button android:id="@+id/round2Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第二次  9:00-11:00" />
-            <Button android:id="@+id/round3Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第三次  12:00-14:00" />
-            <Button android:id="@+id/round4Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第四次  14:00-16:00" />
-            <Button android:id="@+id/round5Button" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:text="第五次  16:00-18:00" />
+            <LinearLayout
+                android:id="@+id/roundsContainer"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical" />
+            <Button
+                android:id="@+id/refreshRoundsButton"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="刷新检查轮次" />
         </LinearLayout>
     </ScrollView>
 </LinearLayout>

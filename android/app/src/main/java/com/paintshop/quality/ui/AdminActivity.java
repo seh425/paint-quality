@@ -1,6 +1,7 @@
 package com.paintshop.quality.ui;
 
 import android.app.DownloadManager;
+import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
 import android.os.Bundle;
@@ -13,6 +14,7 @@ import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.CheckBox;
 import android.widget.EditText;
+import android.widget.ScrollView;
 import android.widget.Spinner;
 import android.widget.TextView;
 import android.widget.Toast;
@@ -22,6 +24,7 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.content.FileProvider;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
@@ -40,7 +43,10 @@ public class AdminActivity extends AppCompatActivity {
     private ApiClient apiClient;
     private SessionManager sessionManager;
     private User currentUser;
-    private EditText feishuInput;
+    private EditText emailInput;
+    private Spinner templateAreaSpinner;
+    private TextView templateAreaText;
+    private final List<String> templateAreas = new ArrayList<>();
     private Spinner excelDateSpinner;
     private ArrayAdapter<String> dateAdapter;
     private final List<String> excelDates = new ArrayList<>();
@@ -54,6 +60,8 @@ public class AdminActivity extends AppCompatActivity {
     private UserAdapter userAdapter;
     private ModelAdapter modelAdapter;
     private ActivityResultLauncher<String[]> templateLauncher;
+    private java.io.File pendingShareFile;
+    private boolean shareInFlight;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,22 +77,62 @@ public class AdminActivity extends AppCompatActivity {
         apiClient = ApiClient.get(this);
         ((TextView) findViewById(R.id.adminRoleText)).setText(
                 currentUser.isPrimaryAdmin() ? "当前角色：一级管理员" : "当前角色：二级管理员");
-        feishuInput = findViewById(R.id.adminFeishuInput);
-        feishuInput.setText(nullToEmpty(currentUser.feishuOpenId));
+        emailInput = findViewById(R.id.adminEmailInput);
+        emailInput.setText(nullToEmpty(currentUser.email));
+        setupTemplateArea();
         newModelCodeInput = findViewById(R.id.newModelCodeInput);
         newModelNameInput = findViewById(R.id.newModelNameInput);
         selectedTemplateText = findViewById(R.id.selectedTemplateText);
         uploadTemplateButton = findViewById(R.id.uploadTemplateButton);
-        findViewById(R.id.primarySection).setVisibility(
-                currentUser.isPrimaryAdmin() ? View.VISIBLE : View.GONE);
+        findViewById(R.id.primarySection).setVisibility(View.VISIBLE);
         setupDates();
         setupLists();
         setupActions();
         loadExcelDates();
+        loadUsers();
+        loadModels();
+    }
+
+    private void setupTemplateArea() {
+        templateAreas.add("前处理");
+        templateAreas.add("电泳");
+        templateAreas.add("电泳烘房");
+        templateAreas.add("密封线");
+        templateAreas.add("UBC");
+        templateAreas.add("Antichip");
+        templateAreas.add("中涂烘房出口");
+        templateAreas.add("中涂喷房");
+        templateAreas.add("中涂烘房");
+        templateAreas.add("面漆1线");
+        templateAreas.add("面漆2线");
+        templateAreas.add("面漆烘房1线");
+        templateAreas.add("面漆烘房2线");
+        templateAreaSpinner = findViewById(R.id.templateAreaSpinner);
+        templateAreaText = findViewById(R.id.templateAreaText);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, templateAreas);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        templateAreaSpinner.setAdapter(adapter);
         if (currentUser.isPrimaryAdmin()) {
-            loadUsers();
-            loadModels();
+            templateAreaSpinner.setVisibility(View.VISIBLE);
+            templateAreaText.setVisibility(View.GONE);
+        } else {
+            templateAreaSpinner.setVisibility(View.GONE);
+            templateAreaText.setVisibility(View.VISIBLE);
+            templateAreaText.setText("模板检查区域：" + nullToEmpty(currentUser.checkArea));
+            int index = templateAreas.indexOf(currentUser.checkArea);
+            if (index >= 0) {
+                templateAreaSpinner.setSelection(index);
+            }
         }
+    }
+
+    private String selectedTemplateArea() {
+        if (currentUser.isPrimaryAdmin()) {
+            Object selected = templateAreaSpinner.getSelectedItem();
+            return selected == null ? "" : selected.toString();
+        }
+        return nullToEmpty(currentUser.checkArea);
     }
 
     private void setupDates() {
@@ -133,9 +181,9 @@ public class AdminActivity extends AppCompatActivity {
 
     private void setupActions() {
         findViewById(R.id.adminBackButton).setOnClickListener(view -> finish());
-        findViewById(R.id.saveFeishuButton).setOnClickListener(view -> saveFeishu());
+        findViewById(R.id.saveEmailButton).setOnClickListener(view -> saveEmail());
         findViewById(R.id.downloadExcelButton).setOnClickListener(view -> downloadExcel());
-        findViewById(R.id.sendFeishuButton).setOnClickListener(view -> sendFeishu());
+        findViewById(R.id.sendEmailButton).setOnClickListener(view -> sendEmail());
         findViewById(R.id.addModelButton).setOnClickListener(view -> addModel());
         templateLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
             if (uri == null) {
@@ -156,17 +204,17 @@ public class AdminActivity extends AppCompatActivity {
         uploadTemplateButton.setOnClickListener(view -> uploadTemplate());
     }
 
-    private void saveFeishu() {
-        String openId = feishuInput.getText().toString().trim();
-        Button button = findViewById(R.id.saveFeishuButton);
+    private void saveEmail() {
+        String email = emailInput.getText().toString().trim();
+        Button button = findViewById(R.id.saveEmailButton);
         button.setEnabled(false);
-        apiClient.saveFeishu(openId, new ApiClient.Callback<Void>() {
+        apiClient.saveEmail(email, new ApiClient.Callback<Void>() {
             @Override
             public void onSuccess(Void ignored) {
                 button.setEnabled(true);
-                currentUser.feishuOpenId = openId;
+                currentUser.email = email;
                 sessionManager.updateUser(currentUser);
-                Toast.makeText(AdminActivity.this, "我的飞书Open ID已保存", Toast.LENGTH_SHORT).show();
+                Toast.makeText(AdminActivity.this, "我的邮箱已保存", Toast.LENGTH_SHORT).show();
             }
 
             @Override
@@ -189,52 +237,118 @@ public class AdminActivity extends AppCompatActivity {
         }
     }
 
-    private void sendFeishu() {
+    private void sendEmail() {
         if (selectedDate == null) {
             return;
         }
-        String input = feishuInput.getText().toString().trim();
-        if (input.isEmpty()) {
-            feishuInput.setError("请先填写并保存我的飞书Open ID");
+        String email = nullToEmpty(currentUser.email).trim();
+        if (email.isEmpty()) {
+            emailInput.setError("请先填写并保存我的邮箱");
             return;
         }
-        if (!input.equals(nullToEmpty(currentUser.feishuOpenId))) {
-            Toast.makeText(this, "Open ID已修改，请先保存再发送", Toast.LENGTH_LONG).show();
-            return;
-        }
-        Button button = findViewById(R.id.sendFeishuButton);
+        deletePendingShareFile();
+        Button button = findViewById(R.id.sendEmailButton);
         button.setEnabled(false);
-        apiClient.sendFeishu(selectedDate, new ApiClient.Callback<Void>() {
+        java.io.File target = new java.io.File(
+                new java.io.File(getCacheDir(), "email"), "quality-check-" + selectedDate + ".xlsx");
+        apiClient.downloadExcelToFile(selectedDate, target, new ApiClient.Callback<java.io.File>() {
             @Override
-            public void onSuccess(Void ignored) {
+            public void onSuccess(java.io.File file) {
                 button.setEnabled(true);
-                Toast.makeText(AdminActivity.this, "已请求发送到我的飞书", Toast.LENGTH_LONG).show();
+                openMailClient(file, email);
             }
 
             @Override
             public void onError(String message) {
                 button.setEnabled(true);
-                Toast.makeText(AdminActivity.this, "飞书发送失败：" + message, Toast.LENGTH_LONG).show();
+                showLongError("邮件发送准备失败", message);
             }
         });
+    }
+
+    private void openMailClient(java.io.File file, String email) {
+        try {
+            Uri uri = FileProvider.getUriForFile(this,
+                    getPackageName() + ".fileprovider", file);
+            Intent intent = new Intent(Intent.ACTION_SEND);
+            intent.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            intent.putExtra(Intent.EXTRA_STREAM, uri);
+            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{email});
+            intent.putExtra(Intent.EXTRA_SUBJECT, "质量检查记录 " + selectedDate);
+            intent.putExtra(Intent.EXTRA_TEXT, "附件为 " + selectedDate + " 质量检查记录，请查收。");
+            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            pendingShareFile = file;
+            shareInFlight = true;
+            startActivity(Intent.createChooser(intent, "发送检查记录到邮箱"));
+        } catch (RuntimeException error) {
+            deletePendingShareFile();
+            showLongError("无法打开邮件客户端",
+                    "请确认手机已安装并登录邮箱APP。\n" + error.getMessage());
+        }
+    }
+
+    private void deletePendingShareFile() {
+        java.io.File file = pendingShareFile;
+        pendingShareFile = null;
+        if (file != null && file.exists()) {
+            //noinspection ResultOfMethodCallIgnored
+            file.delete();
+        }
+    }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+        if (shareInFlight) {
+            shareInFlight = false;
+            deletePendingShareFile();
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        deletePendingShareFile();
+    }
+
+    private void showLongError(String title, String message) {
+        TextView content = new TextView(this);
+        int padding = Math.round(16 * getResources().getDisplayMetrics().density);
+        content.setPadding(padding, padding, padding, padding);
+        content.setText(message);
+        content.setTextIsSelectable(true);
+        ScrollView scrollView = new ScrollView(this);
+        scrollView.addView(content);
+        new AlertDialog.Builder(this)
+                .setTitle(title)
+                .setView(scrollView)
+                .setPositiveButton("关闭", null)
+                .show();
     }
 
     private void uploadTemplate() {
         if (selectedTemplate == null) {
             return;
         }
+        String area = selectedTemplateArea();
+        if (area.trim().isEmpty()) {
+            Toast.makeText(this, "请选择模板检查区域", Toast.LENGTH_LONG).show();
+            return;
+        }
         uploadTemplateButton.setEnabled(false);
-        apiClient.uploadTemplate(selectedTemplate, selectedTemplateName, new ApiClient.Callback<Void>() {
+        apiClient.uploadTemplate(selectedTemplate, selectedTemplateName, area,
+                new ApiClient.Callback<Void>() {
             @Override
             public void onSuccess(Void ignored) {
                 uploadTemplateButton.setEnabled(true);
-                Toast.makeText(AdminActivity.this, "xlsx模板上传成功", Toast.LENGTH_LONG).show();
+                Toast.makeText(AdminActivity.this,
+                        "xlsx模板上传成功（" + area + "）", Toast.LENGTH_LONG).show();
             }
 
             @Override
             public void onError(String message) {
                 uploadTemplateButton.setEnabled(true);
-                Toast.makeText(AdminActivity.this, "模板上传失败：" + message, Toast.LENGTH_LONG).show();
+                showLongError("模板上传失败", message);
             }
         });
     }
@@ -305,13 +419,19 @@ public class AdminActivity extends AppCompatActivity {
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_user, null);
         EditText nameInput = view.findViewById(R.id.editUserNameInput);
         EditText areaInput = view.findViewById(R.id.editUserAreaInput);
-        EditText feishuOpenIdInput = view.findViewById(R.id.editUserFeishuInput);
+        EditText checkAreaInput = view.findViewById(R.id.editUserCheckAreaInput);
+        EditText emailInput = view.findViewById(R.id.editUserEmailInput);
         Spinner roleSpinner = view.findViewById(R.id.editUserRoleSpinner);
+        TextView roleLabel = view.findViewById(R.id.editUserRoleLabel);
         CheckBox enabledCheck = view.findViewById(R.id.editUserEnabledCheck);
         nameInput.setText(nullToEmpty(original.inspectorName));
         areaInput.setText(nullToEmpty(original.area));
-        feishuOpenIdInput.setText(nullToEmpty(original.feishuOpenId));
+        checkAreaInput.setText(nullToEmpty(original.checkArea));
+        emailInput.setText(nullToEmpty(original.email));
         enabledCheck.setChecked(original.enabled);
+        boolean canSetRole = currentUser.isPrimaryAdmin();
+        roleSpinner.setVisibility(canSetRole ? View.VISIBLE : View.GONE);
+        roleLabel.setVisibility(canSetRole ? View.VISIBLE : View.GONE);
 
         List<String> roles = new ArrayList<>();
         if (original.isPrimaryAdmin()) {
@@ -332,8 +452,14 @@ public class AdminActivity extends AppCompatActivity {
                 .setView(view)
                 .setNegativeButton("取消", null)
                 .setPositiveButton("保存", null)
+                .setNeutralButton("删除", null)
                 .create();
-        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+        dialog.setOnShowListener(ignored -> {
+            Button deleteButton = dialog.getButton(AlertDialog.BUTTON_NEUTRAL);
+            boolean deletable = !original.isPrimaryAdmin() && original.id != currentUser.id;
+            deleteButton.setVisibility(deletable ? View.VISIBLE : View.GONE);
+            deleteButton.setOnClickListener(view1 -> confirmDeleteUser(original, dialog));
+            dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(button -> {
                     String name = nameInput.getText().toString().trim();
                     String area = areaInput.getText().toString().trim();
@@ -344,9 +470,12 @@ public class AdminActivity extends AppCompatActivity {
                     User updated = copyUser(original);
                     updated.inspectorName = name;
                     updated.area = area;
-                    updated.feishuOpenId = feishuOpenIdInput.getText().toString().trim();
+                    updated.checkArea = checkAreaInput.getText().toString().trim();
+                    updated.email = emailInput.getText().toString().trim();
                     updated.enabled = enabledCheck.isChecked();
-                    updated.role = roles.get(roleSpinner.getSelectedItemPosition());
+                    updated.role = canSetRole
+                            ? roles.get(roleSpinner.getSelectedItemPosition())
+                            : original.role;
                     Button saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
                     saveButton.setEnabled(false);
                     apiClient.updateUser(updated, new ApiClient.Callback<User>() {
@@ -368,8 +497,32 @@ public class AdminActivity extends AppCompatActivity {
                                     Toast.LENGTH_LONG).show();
                         }
                     });
-                }));
+                });
+        });
         dialog.show();
+    }
+
+    private void confirmDeleteUser(User user, AlertDialog editor) {
+        new AlertDialog.Builder(this)
+                .setTitle("删除人员")
+                .setMessage("确定删除“" + nullToEmpty(user.inspectorName) + "”？删除后该人员将无法登录。")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> apiClient.deleteUser(user.id,
+                        new ApiClient.Callback<Void>() {
+                            @Override
+                            public void onSuccess(Void ignored) {
+                                editor.dismiss();
+                                Toast.makeText(AdminActivity.this, "人员已删除", Toast.LENGTH_SHORT).show();
+                                loadUsers();
+                            }
+
+                            @Override
+                            public void onError(String message) {
+                                Toast.makeText(AdminActivity.this, "删除失败：" + message,
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        }))
+                .show();
     }
 
     private User copyUser(User source) {
@@ -377,9 +530,10 @@ public class AdminActivity extends AppCompatActivity {
         copy.id = source.id;
         copy.inspectorName = source.inspectorName;
         copy.area = source.area;
+        copy.checkArea = source.checkArea;
         copy.role = source.role;
         copy.enabled = source.enabled;
-        copy.feishuOpenId = source.feishuOpenId;
+        copy.email = source.email;
         return copy;
     }
 
@@ -521,8 +675,10 @@ public class AdminActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull Holder holder, int position) {
             User user = users.get(position);
             holder.name.setText(nullToEmpty(user.inspectorName));
-            holder.details.setText("区域：" + nullToEmpty(user.area) + "  |  角色：" + nullToEmpty(user.role)
-                    + "\n状态：" + (user.enabled ? "启用" : "禁用"));
+            holder.details.setText("区域：" + nullToEmpty(user.area)
+                    + "  |  检查区域：" + nullToEmpty(user.checkArea)
+                    + "  |  角色：" + nullToEmpty(user.role)
+                    + "\n状态：" + (user.enabled ? "已同意登录" : "待审核/已禁用"));
             holder.edit.setOnClickListener(view -> listener.onEdit(user));
         }
 

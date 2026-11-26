@@ -1,7 +1,10 @@
 package com.example.paintquality.user;
 
+import com.example.paintquality.common.CurrentUser;
 import com.example.paintquality.common.RequireRoles;
 import jakarta.validation.Valid;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -13,7 +16,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/admin/users")
-@RequireRoles(Role.PRIMARY_ADMIN)
+@RequireRoles({Role.PRIMARY_ADMIN, Role.SECONDARY_ADMIN})
 public class AdminUserController {
 
     private final UserService userService;
@@ -28,7 +31,14 @@ public class AdminUserController {
     }
 
     @PatchMapping("/{id}")
-    public UserResponse update(@PathVariable Long id, @Valid @RequestBody UpdateUserRequest request) {
-        return userService.update(id, request);
+    public UserResponse update(@CurrentUser InspectorUser actor, @PathVariable Long id,
+                               @Valid @RequestBody UpdateUserRequest request) {
+        return userService.update(actor, id, request);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> delete(@CurrentUser InspectorUser actor, @PathVariable Long id) {
+        userService.delete(actor, id);
+        return ResponseEntity.ok().build();
     }
 }

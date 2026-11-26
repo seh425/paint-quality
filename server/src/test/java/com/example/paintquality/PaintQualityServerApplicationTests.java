@@ -1,9 +1,9 @@
 package com.example.paintquality;
 
 import com.example.paintquality.auth.AuthTokenRepository;
+import com.example.paintquality.excel.AreaTemplateRepository;
 import com.example.paintquality.model.VehicleModelRepository;
 import com.example.paintquality.record.QualityRecordRepository;
-import com.example.paintquality.user.BootstrapAdminInitializer;
 import com.example.paintquality.user.InspectorUser;
 import com.example.paintquality.user.Role;
 import com.example.paintquality.user.UserRepository;
@@ -20,8 +20,10 @@ import org.junit.jupiter.api.io.TempDir;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.DynamicPropertyRegistry;
 import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.MockMvc;
@@ -39,8 +41,10 @@ import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.put;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -80,13 +84,14 @@ class PaintQualityServerApplicationTests {
     private UserRepository userRepository;
 
     @Autowired
-    private BootstrapAdminInitializer bootstrapAdminInitializer;
+    private AreaTemplateRepository areaTemplateRepository;
 
     @BeforeEach
     void resetData() {
         tokenRepository.deleteAll();
         recordRepository.deleteAll();
         modelRepository.deleteAll();
+        areaTemplateRepository.deleteAll();
         List<InspectorUser> nonPrimaryUsers = userRepository.findAll().stream()
                 .filter(user -> user.getRole() != Role.PRIMARY_ADMIN).toList();
         userRepository.deleteAll(nonPrimaryUsers);
@@ -94,42 +99,40 @@ class PaintQualityServerApplicationTests {
         admin.setInspectorName("admin");
         admin.setArea("ADMIN");
         admin.setEnabled(true);
-        admin.setFeishuOpenId(null);
+        admin.setEmail(null);
+        admin.setCheckArea(null);
         userRepository.save(admin);
     }
 
     @Test
-    void bootstrapPromotesShiErhuAndAllowsAdminLogin() throws Exception {
-        InspectorUser previousAdmin = userRepository.findByRole(Role.PRIMARY_ADMIN).orElseThrow();
-        InspectorUser target = userRepository.saveAndFlush(
-                new InspectorUser("师二虎", "1#线", Role.USER, true));
-
-        bootstrapAdminInitializer.run(null);
-
-        assertEquals(Role.USER, userRepository.findById(previousAdmin.getId()).orElseThrow().getRole());
-        assertEquals(Role.PRIMARY_ADMIN, userRepository.findById(target.getId()).orElseThrow().getRole());
-        assertEquals(1, userRepository.countByRole(Role.PRIMARY_ADMIN));
-        assertEquals(Role.PRIMARY_ADMIN.name(), login("师二虎", "1#线").role());
-    }
-
-    @Test
     void registerLoginMeAndLogoutWork() throws Exception {
-        Session registered = register("检查人甲", "A1");
+        Session admin = login("admin", "ADMIN");
+        Session registered = register("检查人甲");
         assertEquals(Role.USER.name(), registered.role());
+
+        mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(registered.token())))
+                .andExpect(status().isUnauthorized());
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("inspectorName", "检查人甲", "area", "A1"))))
+                .andExpect(status().isForbidden());
+
+        approve(admin, registered, "A1", "前处理");
 
         mockMvc.perform(get("/api/auth/me").header(HttpHeaders.AUTHORIZATION, bearer(registered.token())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.inspectorName").value("检查人甲"))
                 .andExpect(jsonPath("$.area").value("A1"))
+                .andExpect(jsonPath("$.checkArea").value("前处理"))
                 .andExpect(jsonPath("$.role").value("USER"))
                 .andExpect(jsonPath("$.enabled").value(true));
 
-        Session loggedIn = login("检查人甲", "A1");
+        Session loggedIn = login("检查人甲", "A1", "前处理");
         assertNotNull(loggedIn.token());
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("inspectorName", "检查人甲", "area", "A1"))))
+                        .content(json(Map.of("inspectorName", "检查人甲"))))
                 .andExpect(status().isConflict());
 
         mockMvc.perform(post("/api/auth/logout")
@@ -143,10 +146,10 @@ class PaintQualityServerApplicationTests {
     @Test
     void administratorRoleLimitsAreEnforced() throws Exception {
         Session admin = login("admin", "ADMIN");
-        Session first = register("二级一", "A");
-        Session second = register("二级二", "A");
-        Session third = register("二级三", "A");
-        Session fourth = register("二级四", "A");
+        Session first = register("二级一");
+        Session second = register("二级二");
+        Session third = register("二级三");
+        Session fourth = register("二级四");
 
         for (Session user : List.of(first, second, third)) {
             changeRole(admin, user, "SECONDARY_ADMIN", 200);
@@ -160,6 +163,110 @@ class PaintQualityServerApplicationTests {
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("enabled", false))))
                 .andExpect(status().isConflict());
+    }
+
+    @Test
+    void secondaryAdminUploadsOwnAreaTemplateAndRoundsAreParsed() throws Exception {
+        Session admin = login("admin", "ADMIN");
+        Session secondary = register("密封管理员");
+        approve(admin, secondary, "密封", "密封线");
+        changeRole(admin, secondary, "SECONDARY_ADMIN", 200);
+        MockMultipartFile template = templateFile();
+
+        mockMvc.perform(multipart("/api/admin/template").file(template)
+                        .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/rounds")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(5))
+                .andExpect(jsonPath("$[0].number").value(1))
+                .andExpect(jsonPath("$[0].sequence").value("第一次检查"))
+                .andExpect(jsonPath("$[0].timeArea").value("7：00-9：00 /工程"))
+                .andExpect(jsonPath("$[4].sequence").value("第五次检查"));
+
+        Session normal = register("普通检查人");
+        approve(admin, normal, "面漆", "面漆1线");
+        mockMvc.perform(multipart("/api/admin/template").file(template).param("area", "面漆1线")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(normal.token())))
+                .andExpect(status().isForbidden());
+
+        mockMvc.perform(multipart("/api/admin/template").file(template).param("area", "面漆1线")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(admin.token())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(get("/api/rounds")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(normal.token())))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.length()").value(5));
+    }
+
+    @Test
+    void secondaryAdminApprovesDeletesUsersAndMaintainsModels() throws Exception {
+        Session admin = login("admin", "ADMIN");
+        Session secondary = register("二级管理员");
+        approve(admin, secondary, "密封", "密封线");
+        changeRole(admin, secondary, "SECONDARY_ADMIN", 200);
+
+        Session pending = register("待审人员");
+        mockMvc.perform(patch("/api/admin/users/{id}", pending.id())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("enabled", true, "area", "面漆",
+                                "checkArea", "面漆1线"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.enabled").value(true))
+                .andExpect(jsonPath("$.checkArea").value("面漆1线"));
+
+        mockMvc.perform(patch("/api/admin/users/{id}", pending.id())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("role", "SECONDARY_ADMIN"))))
+                .andExpect(status().isForbidden());
+
+        login("待审人员", "面漆", "面漆1线");
+
+        mockMvc.perform(post("/api/models")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("code", "SEC1", "modelName", "二级维护车型"))))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(delete("/api/admin/users/{id}", pending.id())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token())))
+                .andExpect(status().isOk());
+        mockMvc.perform(post("/api/auth/login")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("inspectorName", "待审人员", "area", "面漆"))))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void adminCanSaveOwnEmailForMobileSending() throws Exception {
+        Session admin = login("admin", "ADMIN");
+
+        mockMvc.perform(put("/api/profile/email")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(admin.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("email", "admin@example.com"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.email").value("admin@example.com"));
+
+        mockMvc.perform(put("/api/profile/email")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(admin.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("email", "not-an-email"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    private MockMultipartFile templateFile() throws Exception {
+        byte[] content;
+        try (var input = new ClassPathResource("quality-check-template.xlsx").getInputStream()) {
+            content = input.readAllBytes();
+        }
+        return new MockMultipartFile("file", "template.xlsx",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", content);
     }
 
     @Test
@@ -182,8 +289,10 @@ class PaintQualityServerApplicationTests {
     @Test
     void batchValidationOwnershipAndSharedReadWork() throws Exception {
         Session admin = login("admin", "ADMIN");
-        Session owner = register("检查人甲", "A1");
-        Session other = register("检查人乙", "A2");
+        Session owner = register("检查人甲");
+        Session other = register("检查人乙");
+        approve(admin, owner, "A1", "前处理");
+        approve(admin, other, "A2", "电泳");
         createModel(admin);
         LocalDate today = LocalDate.now(clock);
         ObjectNode batch = batch(today, 1, 1, false);
@@ -226,7 +335,7 @@ class PaintQualityServerApplicationTests {
         expectInvalidBatch(owner, missingNokNote);
 
         ObjectNode wrongVehicleNumber = batch.deepCopy();
-        ((ObjectNode) wrongVehicleNumber.get("vehicles").get(0)).put("vehicleNumber", "123");
+        ((ObjectNode) wrongVehicleNumber.get("vehicles").get(0)).put("vehicleNumber", "000000");
         expectInvalidBatch(owner, wrongVehicleNumber);
 
         ObjectNode invalidVin = batch.deepCopy();
@@ -252,8 +361,10 @@ class PaintQualityServerApplicationTests {
     @Test
     void excelContainsMappedVehiclesSignaturesAndNokComment() throws Exception {
         Session admin = login("admin", "ADMIN");
-        Session firstInspector = register("检查人甲", "A1");
-        Session secondInspector = register("检查人乙", "A2");
+        Session firstInspector = register("检查人甲");
+        Session secondInspector = register("检查人乙");
+        approve(admin, firstInspector, "A1", "前处理");
+        approve(admin, secondInspector, "A2", "电泳");
         createModel(admin);
         LocalDate today = LocalDate.now(clock);
 
@@ -290,19 +401,37 @@ class PaintQualityServerApplicationTests {
                 temporaryDirectory.resolve("exports").resolve(today + ".xlsx")));
     }
 
-    private Session register(String name, String area) throws Exception {
+    private Session register(String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("inspectorName", name, "area", area))))
+                        .content(json(Map.of("inspectorName", name))))
                 .andExpect(status().isOk())
                 .andReturn();
         return session(result);
     }
 
+    private void approve(Session admin, Session target, String area, String checkArea) throws Exception {
+        mockMvc.perform(patch("/api/admin/users/{id}", target.id())
+                        .header(HttpHeaders.AUTHORIZATION, bearer(admin.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("enabled", true, "area", area, "checkArea", checkArea))))
+                .andExpect(status().isOk());
+    }
+
     private Session login(String name, String area) throws Exception {
+        return login(name, area, null);
+    }
+
+    private Session login(String name, String area, String checkArea) throws Exception {
+        Map<String, Object> body = new java.util.LinkedHashMap<>();
+        body.put("inspectorName", name);
+        body.put("area", area);
+        if (checkArea != null) {
+            body.put("checkArea", checkArea);
+        }
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("inspectorName", name, "area", area))))
+                        .content(json(body)))
                 .andExpect(status().isOk())
                 .andReturn();
         return session(result);

@@ -31,20 +31,20 @@ public class VehicleModelController {
     }
 
     @PostMapping
-    @RequireRoles(Role.PRIMARY_ADMIN)
+    @RequireRoles({Role.PRIMARY_ADMIN, Role.SECONDARY_ADMIN})
     public VehicleModelResponse create(@Valid @RequestBody VehicleModelRequest request) {
         return modelService.create(request);
     }
 
     @PutMapping("/{id}")
-    @RequireRoles(Role.PRIMARY_ADMIN)
+    @RequireRoles({Role.PRIMARY_ADMIN, Role.SECONDARY_ADMIN})
     public VehicleModelResponse update(@PathVariable Long id,
                                        @Valid @RequestBody VehicleModelRequest request) {
         return modelService.update(id, request);
     }
 
     @DeleteMapping("/{id}")
-    @RequireRoles(Role.PRIMARY_ADMIN)
+    @RequireRoles({Role.PRIMARY_ADMIN, Role.SECONDARY_ADMIN})
     public ResponseEntity<Void> delete(@PathVariable Long id) {
         modelService.delete(id);
         return ResponseEntity.ok().build();

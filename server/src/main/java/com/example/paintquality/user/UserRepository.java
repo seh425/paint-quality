@@ -9,11 +9,9 @@ public interface UserRepository extends JpaRepository<InspectorUser, Long> {
 
     Optional<InspectorUser> findByInspectorNameAndArea(String inspectorName, String area);
 
-    Optional<InspectorUser> findFirstByInspectorNameOrderByIdAsc(String inspectorName);
+    List<InspectorUser> findAllByInspectorName(String inspectorName);
 
     Optional<InspectorUser> findByRole(Role role);
-
-    List<InspectorUser> findAllByRole(Role role);
 
     boolean existsByInspectorNameAndArea(String inspectorName, String area);
 

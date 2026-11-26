@@ -31,13 +31,27 @@ public final class UserValues {
         return normalized;
     }
 
-    public static String feishuOpenId(String value) {
+    public static String checkArea(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        String normalized = value.trim();
+        if (normalized.length() > 50) {
+            throw ApiException.badRequest("检查区域不能超过50个字符");
+        }
+        return normalized;
+    }
+
+    public static String email(String value) {
         if (value == null || value.isBlank()) {
             return null;
         }
         String normalized = value.trim();
         if (normalized.length() > 128) {
-            throw ApiException.badRequest("飞书Open ID不能超过128个字符");
+            throw ApiException.badRequest("邮箱不能超过128个字符");
+        }
+        if (!normalized.matches("[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}")) {
+            throw ApiException.badRequest("邮箱格式不正确");
         }
         return normalized;
     }

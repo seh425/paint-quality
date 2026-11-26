@@ -45,9 +45,13 @@ import java.util.concurrent.ExecutionException;
 
 public class ScanActivity extends AppCompatActivity {
     public static final String EXTRA_MODEL_CODES = "modelCodes";
+    public static final String EXTRA_BATCH = "batchMode";
     public static final String RESULT_VIN = "vin";
     public static final String RESULT_VEHICLE_NUMBER = "vehicleNumber";
     public static final String RESULT_MODEL_CODE = "modelCode";
+    public static final String RESULT_VINS = "vins";
+    public static final String RESULT_VEHICLE_NUMBERS = "vehicleNumbers";
+    public static final String RESULT_MODEL_CODE_LIST = "modelCodeList";
 
     private PreviewView previewView;
     private TextView statusText;
@@ -56,7 +60,9 @@ public class ScanActivity extends AppCompatActivity {
     private ImageCapture imageCapture;
     private List<String> modelCodes = new ArrayList<>();
     private boolean recognizing;
+    private boolean batchMode;
     private ActivityResultLauncher<String> permissionLauncher;
+    private ActivityResultLauncher<String> pickLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -69,6 +75,28 @@ public class ScanActivity extends AppCompatActivity {
         List<String> codes = getIntent().getStringArrayListExtra(EXTRA_MODEL_CODES);
         if (codes != null) {
             modelCodes = codes;
+        }
+        batchMode = getIntent().getBooleanExtra(EXTRA_BATCH, false);
+        pickLauncher = registerForActivityResult(new ActivityResultContracts.GetMultipleContents(),
+                uris -> {
+                    if (uris == null || uris.isEmpty()) {
+                        setResult(RESULT_CANCELED);
+                        finish();
+                        return;
+                    }
+                    recognizeBatch(uris);
+                });
+        if (batchMode) {
+            previewView.setVisibility(View.GONE);
+            captureButton.setText("重新选择照片");
+            captureButton.setEnabled(true);
+            captureButton.setOnClickListener(view -> openBatchPicker());
+            findViewById(R.id.cancelScanButton).setOnClickListener(view -> {
+                setResult(RESULT_CANCELED);
+                finish();
+            });
+            openBatchPicker();
+            return;
         }
         permissionLauncher = registerForActivityResult(
                 new ActivityResultContracts.RequestPermission(), granted -> {
@@ -199,6 +227,81 @@ public class ScanActivity extends AppCompatActivity {
                 return;
             }
             deliverResult(vin, vehicleNumber, modelCode);
+        });
+    }
+
+    private void openBatchPicker() {
+        statusText.setText("从相册选择最多5张条码照片");
+        pickLauncher.launch("image/*");
+    }
+
+    private void recognizeBatch(List<Uri> uris) {
+        List<Uri> selected = uris.size() > 5 ? new ArrayList<>(uris.subList(0, 5)) : uris;
+        setRecognizing(true);
+        List<String> vins = new ArrayList<>();
+        List<String> numbers = new ArrayList<>();
+        List<String> codes = new ArrayList<>();
+        processBatchImage(selected, 0, vins, numbers, codes);
+    }
+
+    private void processBatchImage(List<Uri> uris, int index,
+                                   List<String> vins, List<String> numbers, List<String> codes) {
+        if (index >= uris.size()) {
+            setRecognizing(false);
+            if (numbers.isEmpty() && codes.isEmpty()) {
+                statusText.setText("未识别到条码，请重选清晰照片");
+                Toast.makeText(this, "未识别到任何条码", Toast.LENGTH_LONG).show();
+                setResult(RESULT_CANCELED);
+                finish();
+                return;
+            }
+            Intent result = new Intent();
+            result.putStringArrayListExtra(RESULT_VINS, new ArrayList<>(vins));
+            result.putStringArrayListExtra(RESULT_VEHICLE_NUMBERS, new ArrayList<>(numbers));
+            result.putStringArrayListExtra(RESULT_MODEL_CODE_LIST, new ArrayList<>(codes));
+            setResult(RESULT_OK, result);
+            finish();
+            return;
+        }
+        statusText.setText("正在识别第 " + (index + 1) + "/" + uris.size() + " 张…");
+        InputImage image;
+        try {
+            image = InputImage.fromFilePath(this, uris.get(index));
+        } catch (IOException | RuntimeException error) {
+            processBatchImage(uris, index + 1, vins, numbers, codes);
+            return;
+        }
+        BarcodeScanner barcodeScanner = BarcodeScanning.getClient();
+        TextRecognizer textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
+        Task<List<Barcode>> barcodeTask = barcodeScanner.process(image);
+        Task<Text> textTask = textRecognizer.process(image);
+        Tasks.whenAllComplete(barcodeTask, textTask).addOnCompleteListener(combined -> {
+            List<String> barcodeValues = new ArrayList<>();
+            if (barcodeTask.isSuccessful() && barcodeTask.getResult() != null) {
+                for (Barcode barcode : barcodeTask.getResult()) {
+                    if (barcode.getRawValue() != null) {
+                        barcodeValues.add(barcode.getRawValue());
+                    }
+                }
+            }
+            String text = textTask.isSuccessful() && textTask.getResult() != null
+                    ? textTask.getResult().getText() : "";
+            String barcode = RecognitionParser.barcodeCandidate(
+                    barcodeValues.toArray(new String[0]));
+            if (barcode.isEmpty()) {
+                barcode = RecognitionParser.barcodeCandidate(text);
+            }
+            String vin = RecognitionParser.extractVin(text, barcode);
+            String vehicleNumber = RecognitionParser.vehicleNumberFromBarcode(barcode);
+            String modelCode = RecognitionParser.modelCodeFromBarcode(barcode);
+            barcodeScanner.close();
+            textRecognizer.close();
+            if (!vehicleNumber.isEmpty() || !modelCode.isEmpty()) {
+                numbers.add(vehicleNumber);
+                codes.add(modelCode);
+                vins.add(vin);
+            }
+            processBatchImage(uris, index + 1, vins, numbers, codes);
         });
     }
 

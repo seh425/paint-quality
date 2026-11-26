@@ -21,13 +21,23 @@ public class UserService {
 
     @Transactional(readOnly = true)
     public List<UserResponse> findAll() {
-        return userRepository.findAllByOrderByIdAsc().stream().map(UserResponse::from).toList();
+        return userRepository.findAllByOrderByIdAsc().stream()
+                .filter(user -> !user.isDeleted())
+                .map(UserResponse::from)
+                .toList();
     }
 
     @Transactional
-    public UserResponse update(Long id, UpdateUserRequest request) {
+    public UserResponse update(InspectorUser actor, Long id, UpdateUserRequest request) {
         InspectorUser user = userRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("用户不存在"));
+        if (user.isDeleted()) {
+            throw ApiException.notFound("用户不存在");
+        }
+        if (actor.getRole() != Role.PRIMARY_ADMIN
+                && request.role() != null && request.role() != user.getRole()) {
+            throw ApiException.forbidden("只有一级管理员可以设置角色等级");
+        }
 
         if (user.getRole() == Role.PRIMARY_ADMIN
                 && request.role() != null && request.role() != Role.PRIMARY_ADMIN) {
@@ -48,8 +58,13 @@ public class UserService {
         String name = request.inspectorName() == null
                 ? user.getInspectorName() : UserValues.name(request.inspectorName());
         String area = request.area() == null ? user.getArea() : UserValues.area(request.area());
-        if (userRepository.existsByInspectorNameAndAreaAndIdNot(name, area, id)) {
-            throw ApiException.conflict("该姓名和区域已被其他用户使用");
+        boolean duplicated = userRepository.findAllByInspectorName(name).stream()
+                .anyMatch(other -> !other.getId().equals(id) && !other.isDeleted());
+        if (duplicated) {
+            throw ApiException.conflict("该检查人姓名已被其他用户使用");
+        }
+        if (Boolean.TRUE.equals(request.enabled()) && (area == null || area.isBlank())) {
+            throw ApiException.badRequest("请先设置责任区域后再同意登录");
         }
 
         user.setInspectorName(name);
@@ -60,8 +75,11 @@ public class UserService {
         if (request.enabled() != null) {
             user.setEnabled(request.enabled());
         }
-        if (request.feishuOpenId() != null) {
-            user.setFeishuOpenId(UserValues.feishuOpenId(request.feishuOpenId()));
+        if (request.checkArea() != null) {
+            user.setCheckArea(UserValues.checkArea(request.checkArea()));
+        }
+        if (request.email() != null) {
+            user.setEmail(UserValues.email(request.email()));
         }
 
         try {
@@ -76,10 +94,35 @@ public class UserService {
     }
 
     @Transactional
-    public UserResponse updateOwnFeishuOpenId(Long userId, String openId) {
+    public void delete(InspectorUser actor, Long id) {
+        InspectorUser user = userRepository.findById(id)
+                .orElseThrow(() -> ApiException.notFound("用户不存在"));
+        if (user.isDeleted()) {
+            return;
+        }
+        if (user.getRole() == Role.PRIMARY_ADMIN) {
+            throw ApiException.conflict("一级管理员不可删除");
+        }
+        if (user.getId().equals(actor.getId())) {
+            throw ApiException.conflict("不能删除自己的账号");
+        }
+        tokenRepository.deleteByUserId(user.getId());
+        String suffix = "#" + user.getId();
+        String base = user.getInspectorName();
+        if (base.length() > 80 - suffix.length()) {
+            base = base.substring(0, 80 - suffix.length());
+        }
+        user.setInspectorName(base + suffix);
+        user.setDeleted(true);
+        user.setEnabled(false);
+        userRepository.saveAndFlush(user);
+    }
+
+    @Transactional
+    public UserResponse updateOwnEmail(Long userId, String email) {
         InspectorUser user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("用户不存在"));
-        user.setFeishuOpenId(UserValues.feishuOpenId(openId));
+        user.setEmail(UserValues.email(email));
         return UserResponse.from(userRepository.save(user));
     }
 }

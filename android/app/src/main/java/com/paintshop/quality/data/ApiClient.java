@@ -13,6 +13,7 @@ import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import com.paintshop.quality.model.DraftVehicle;
 import com.paintshop.quality.model.InspectionRecord;
+import com.paintshop.quality.model.RoundInfo;
 import com.paintshop.quality.model.User;
 import com.paintshop.quality.model.VehicleModel;
 
@@ -160,20 +161,23 @@ public class ApiClient {
         });
     }
 
-    private Map<String, Object> fields(String inspectorName, String area) {
+    private Map<String, Object> fields(String inspectorName, String area, String checkArea) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("inspectorName", inspectorName);
         body.put("area", area);
+        body.put("checkArea", checkArea);
         return body;
     }
 
-    public void register(String inspectorName, String area, Callback<AuthResponse> callback) {
-        request("POST", "/api/auth/register", fields(inspectorName, area),
-                AuthResponse.class, callback);
+    public void register(String inspectorName, Callback<AuthResponse> callback) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("inspectorName", inspectorName);
+        request("POST", "/api/auth/register", body, AuthResponse.class, callback);
     }
 
-    public void login(String inspectorName, String area, Callback<AuthResponse> callback) {
-        request("POST", "/api/auth/login", fields(inspectorName, area),
+    public void login(String inspectorName, String area, String checkArea,
+                      Callback<AuthResponse> callback) {
+        request("POST", "/api/auth/login", fields(inspectorName, area, checkArea),
                 AuthResponse.class, callback);
     }
 
@@ -230,10 +234,9 @@ public class ApiClient {
                 new TypeToken<List<String>>() { }.getType(), callback);
     }
 
-    public void sendFeishu(String date, Callback<Void> callback) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("date", date);
-        request("POST", "/api/excel/feishu", body, Void.class, callback);
+    public void getRounds(Callback<List<RoundInfo>> callback) {
+        request("GET", "/api/rounds", null,
+                new TypeToken<List<RoundInfo>>() { }.getType(), callback);
     }
 
     public void listUsers(Callback<List<User>> callback) {
@@ -245,19 +248,24 @@ public class ApiClient {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("inspectorName", user.inspectorName);
         body.put("area", user.area);
+        body.put("checkArea", user.checkArea);
         body.put("role", user.role);
         body.put("enabled", user.enabled);
-        body.put("feishuOpenId", user.feishuOpenId);
+        body.put("email", user.email);
         request("PATCH", "/api/admin/users/" + user.id, body, User.class, callback);
     }
 
-    public void saveFeishu(String openId, Callback<Void> callback) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("feishuOpenId", openId);
-        request("PUT", "/api/profile/feishu", body, Void.class, callback);
+    public void deleteUser(long id, Callback<Void> callback) {
+        request("DELETE", "/api/admin/users/" + id, null, Void.class, callback);
     }
 
-    public void uploadTemplate(Uri uri, String fileName, Callback<Void> callback) {
+    public void saveEmail(String email, Callback<Void> callback) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("email", email);
+        request("PUT", "/api/profile/email", body, Void.class, callback);
+    }
+
+    public void uploadTemplate(Uri uri, String fileName, String area, Callback<Void> callback) {
         RequestBody fileBody = new RequestBody() {
             @Override
             public MediaType contentType() {
@@ -281,11 +289,14 @@ public class ApiClient {
                 }
             }
         };
-        MultipartBody body = new MultipartBody.Builder()
+        MultipartBody.Builder body = new MultipartBody.Builder()
                 .setType(MultipartBody.FORM)
-                .addFormDataPart("file", fileName, fileBody)
-                .build();
-        Request.Builder builder = new Request.Builder().url(url("/api/admin/template")).post(body);
+                .addFormDataPart("file", fileName, fileBody);
+        if (area != null && !area.trim().isEmpty()) {
+            body.addFormDataPart("area", area.trim());
+        }
+        MultipartBody multipartBody = body.build();
+        Request.Builder builder = new Request.Builder().url(url("/api/admin/template")).post(multipartBody);
         String token = session.getToken();
         if (token != null && !token.isEmpty()) {
             builder.header("Authorization", "Bearer " + token);
@@ -309,5 +320,52 @@ public class ApiClient {
                 .setAllowedOverRoaming(true);
         DownloadManager manager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
         return manager.enqueue(request);
+    }
+
+    public void downloadExcelToFile(String date, java.io.File target,
+                                    Callback<java.io.File> callback) {
+        Request.Builder builder = new Request.Builder()
+                .url(url("/api/excel/" + Uri.encode(date) + ".xlsx"));
+        String token = session.getToken();
+        if (token != null && !token.isEmpty()) {
+            builder.header("Authorization", "Bearer " + token);
+        }
+        client.newCall(builder.build()).enqueue(new okhttp3.Callback() {
+            @Override
+            public void onFailure(Call call, IOException error) {
+                mainHandler.post(() -> callback.onError("无法连接服务器：" + error.getMessage()));
+            }
+
+            @Override
+            public void onResponse(Call call, Response response) {
+                try (Response closable = response) {
+                    if (!response.isSuccessful()) {
+                        String body = response.body() == null ? "" : response.body().string();
+                        mainHandler.post(() -> callback.onError(serverMessage(body, response.code())));
+                        return;
+                    }
+                    if (response.body() == null) {
+                        mainHandler.post(() -> callback.onError("服务器未返回文件"));
+                        return;
+                    }
+                    java.io.File parent = target.getParentFile();
+                    if (parent != null && !parent.exists() && !parent.mkdirs()) {
+                        mainHandler.post(() -> callback.onError("无法创建临时目录"));
+                        return;
+                    }
+                    try (InputStream input = response.body().byteStream();
+                         java.io.OutputStream output = new java.io.FileOutputStream(target)) {
+                        byte[] buffer = new byte[8192];
+                        int read;
+                        while ((read = input.read(buffer)) != -1) {
+                            output.write(buffer, 0, read);
+                        }
+                    }
+                    mainHandler.post(() -> callback.onSuccess(target));
+                } catch (IOException error) {
+                    mainHandler.post(() -> callback.onError("保存Excel失败：" + error.getMessage()));
+                }
+            }
+        });
     }
 }
