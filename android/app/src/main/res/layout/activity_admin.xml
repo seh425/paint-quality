@@ -53,20 +53,15 @@
             android:layout_width="match_parent"
             android:layout_height="48dp" />
         <Button
-            android:id="@+id/downloadExcelButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="下载Excel" />
-        <Button
             android:id="@+id/sendEmailButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="一键发送到我的邮箱" />
+            android:text="一键下载并发送到我的邮箱" />
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="22dp"
-            android:text="检查模板（按责任区域上传）"
+            android:text="检查模板（按检查区域上传）"
             android:textColor="@color/navy"
             android:textSize="20sp"
             android:textStyle="bold" />

@@ -1,6 +1,6 @@
 package com.paintshop.quality.ui;
 
-import android.app.DownloadManager;
+import android.content.ClipData;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
@@ -182,7 +182,6 @@ public class AdminActivity extends AppCompatActivity {
     private void setupActions() {
         findViewById(R.id.adminBackButton).setOnClickListener(view -> finish());
         findViewById(R.id.saveEmailButton).setOnClickListener(view -> saveEmail());
-        findViewById(R.id.downloadExcelButton).setOnClickListener(view -> downloadExcel());
         findViewById(R.id.sendEmailButton).setOnClickListener(view -> sendEmail());
         findViewById(R.id.addModelButton).setOnClickListener(view -> addModel());
         templateLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
@@ -225,18 +224,6 @@ public class AdminActivity extends AppCompatActivity {
         });
     }
 
-    private void downloadExcel() {
-        if (selectedDate == null) {
-            return;
-        }
-        try {
-            apiClient.downloadExcel(selectedDate);
-            Toast.makeText(this, "已加入系统下载，保存到应用专属Download目录", Toast.LENGTH_LONG).show();
-        } catch (RuntimeException error) {
-            Toast.makeText(this, "无法启动下载：" + error.getMessage(), Toast.LENGTH_LONG).show();
-        }
-    }
-
     private void sendEmail() {
         if (selectedDate == null) {
             return;
@@ -270,21 +257,46 @@ public class AdminActivity extends AppCompatActivity {
         try {
             Uri uri = FileProvider.getUriForFile(this,
                     getPackageName() + ".fileprovider", file);
-            Intent intent = new Intent(Intent.ACTION_SEND);
-            intent.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            intent.putExtra(Intent.EXTRA_STREAM, uri);
-            intent.putExtra(Intent.EXTRA_EMAIL, new String[]{email});
-            intent.putExtra(Intent.EXTRA_SUBJECT, "质量检查记录 " + selectedDate);
-            intent.putExtra(Intent.EXTRA_TEXT, "附件为 " + selectedDate + " 质量检查记录，请查收。");
-            intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            Intent base = new Intent(Intent.ACTION_SEND);
+            base.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
+            base.putExtra(Intent.EXTRA_STREAM, uri);
+            base.putExtra(Intent.EXTRA_EMAIL, new String[]{email});
+            base.putExtra(Intent.EXTRA_SUBJECT, "质量检查记录 " + selectedDate);
+            base.putExtra(Intent.EXTRA_TEXT, "附件为 " + selectedDate + " 质量检查记录，请查收。");
+            base.setClipData(ClipData.newRawUri("excel", uri));
+            base.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
             pendingShareFile = file;
             shareInFlight = true;
-            startActivity(Intent.createChooser(intent, "发送检查记录到邮箱"));
+            String mailPackage = defaultMailPackage();
+            if (mailPackage != null) {
+                Intent targeted = new Intent(base).setPackage(mailPackage);
+                try {
+                    startActivity(targeted);
+                    return;
+                } catch (RuntimeException ignored) {
+                    // 默认邮箱APP不支持附件时，退回系统选择器
+                }
+            }
+            startActivity(Intent.createChooser(base, "发送检查记录到邮箱"));
         } catch (RuntimeException error) {
             deletePendingShareFile();
             showLongError("无法打开邮件客户端",
                     "请确认手机已安装并登录邮箱APP。\n" + error.getMessage());
         }
+    }
+
+    private String defaultMailPackage() {
+        try {
+            Intent probe = new Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:"));
+            android.content.pm.ResolveInfo info = getPackageManager()
+                    .resolveActivity(probe, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY);
+            if (info != null && info.activityInfo != null) {
+                return info.activityInfo.packageName;
+            }
+        } catch (RuntimeException ignored) {
+            // 查询失败时使用系统选择器
+        }
+        return null;
     }
 
     private void deletePendingShareFile() {
@@ -418,16 +430,10 @@ public class AdminActivity extends AppCompatActivity {
     private void showUserEditor(User original) {
         View view = LayoutInflater.from(this).inflate(R.layout.dialog_user, null);
         EditText nameInput = view.findViewById(R.id.editUserNameInput);
-        EditText areaInput = view.findViewById(R.id.editUserAreaInput);
-        EditText checkAreaInput = view.findViewById(R.id.editUserCheckAreaInput);
-        EditText emailInput = view.findViewById(R.id.editUserEmailInput);
         Spinner roleSpinner = view.findViewById(R.id.editUserRoleSpinner);
         TextView roleLabel = view.findViewById(R.id.editUserRoleLabel);
         CheckBox enabledCheck = view.findViewById(R.id.editUserEnabledCheck);
         nameInput.setText(nullToEmpty(original.inspectorName));
-        areaInput.setText(nullToEmpty(original.area));
-        checkAreaInput.setText(nullToEmpty(original.checkArea));
-        emailInput.setText(nullToEmpty(original.email));
         enabledCheck.setChecked(original.enabled);
         boolean canSetRole = currentUser.isPrimaryAdmin();
         roleSpinner.setVisibility(canSetRole ? View.VISIBLE : View.GONE);
@@ -462,16 +468,12 @@ public class AdminActivity extends AppCompatActivity {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE)
                 .setOnClickListener(button -> {
                     String name = nameInput.getText().toString().trim();
-                    String area = areaInput.getText().toString().trim();
-                    if (name.isEmpty() || area.isEmpty()) {
-                        Toast.makeText(this, "姓名和责任区域不能为空", Toast.LENGTH_SHORT).show();
+                    if (name.isEmpty()) {
+                        Toast.makeText(this, "姓名不能为空", Toast.LENGTH_SHORT).show();
                         return;
                     }
                     User updated = copyUser(original);
                     updated.inspectorName = name;
-                    updated.area = area;
-                    updated.checkArea = checkAreaInput.getText().toString().trim();
-                    updated.email = emailInput.getText().toString().trim();
                     updated.enabled = enabledCheck.isChecked();
                     updated.role = canSetRole
                             ? roles.get(roleSpinner.getSelectedItemPosition())

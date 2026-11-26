@@ -11,18 +11,22 @@ import java.util.regex.Pattern;
 public final class RecognitionParser {
     private static final Pattern VIN_PATTERN = Pattern.compile(
             "(?<![A-Z0-9])[A-HJ-NPR-Z0-9]{17}(?![A-Z0-9])");
+    private static final Pattern VIN_BODY = Pattern.compile("[A-HJ-NPR-Z0-9]{17}");
     private static final Pattern CONSERVATIVE_MODEL_PATTERN = Pattern.compile(
             "(?<![A-Z0-9])([A-Z][0-9]{1,2})(?![A-Z0-9])");
 
     private RecognitionParser() {
     }
 
+    /**
+     * 先按标准VIN规则匹配；失败后把OCR常见的 O/0、I/1、Q/0 混淆还原，再按行滑动查找。
+     */
     public static String extractVin(String... sources) {
         if (sources == null) {
             return "";
         }
         for (String source : sources) {
-            if (source == null) {
+            if (source == null || source.isEmpty()) {
                 continue;
             }
             Matcher matcher = VIN_PATTERN.matcher(source.toUpperCase(Locale.ROOT));
@@ -30,7 +34,59 @@ public final class RecognitionParser {
                 return matcher.group();
             }
         }
+        for (String source : sources) {
+            if (source == null) {
+                continue;
+            }
+            for (String line : source.split("\\r?\\n")) {
+                for (String token : line.split("[^A-Za-z0-9]+")) {
+                    String normalized = normalizeVinText(token);
+                    if (isLikelyVin(normalized)) {
+                        return normalized;
+                    }
+                }
+                String compact = normalizeVinText(line).replaceAll("[^A-Z0-9]", "");
+                if (isLikelyVin(compact)) {
+                    return compact;
+                }
+            }
+        }
         return "";
+    }
+
+    private static boolean isLikelyVin(String candidate) {
+        return candidate.length() == 17
+                && VIN_BODY.matcher(candidate).matches()
+                && countDigits(candidate) >= 3
+                && countLetters(candidate) >= 4;
+    }
+
+    private static String normalizeVinText(String value) {
+        return value.toUpperCase(Locale.ROOT)
+                .replace('O', '0')
+                .replace('I', '1')
+                .replace('Q', '0');
+    }
+
+    private static int countDigits(String value) {
+        int count = 0;
+        for (int i = 0; i < value.length(); i++) {
+            if (Character.isDigit(value.charAt(i))) {
+                count++;
+            }
+        }
+        return count;
+    }
+
+    private static int countLetters(String value) {
+        int count = 0;
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            if (ch >= 'A' && ch <= 'Z' && ch != 'I' && ch != 'O' && ch != 'Q') {
+                count++;
+            }
+        }
+        return count;
     }
 
     public static boolean isValidVin(String value) {
@@ -38,7 +94,7 @@ public final class RecognitionParser {
     }
 
     /**
-     * 找出条码正文：前6位为数字且总长不少于12位。
+     * 找出条码正文：前6位为数字且总长不少于12位；允许OCR把数字识别成相近字母。
      */
     public static String barcodeCandidate(String... sources) {
         if (sources == null) {
@@ -49,17 +105,92 @@ public final class RecognitionParser {
                 continue;
             }
             String whole = clean(source);
-            if (whole.length() <= 40 && whole.matches("\\d{6}[A-Z0-9]{6,}")) {
+            if (isBarcodeLike(whole)) {
                 return whole;
+            }
+            String correctedWhole = correctBarcodePrefix(whole);
+            if (correctedWhole != null) {
+                return correctedWhole;
             }
             for (String token : source.split("[^A-Za-z0-9]+")) {
                 String cleaned = token.toUpperCase(Locale.ROOT);
-                if (cleaned.matches("\\d{6}[A-Z0-9]{6,}")) {
+                if (isBarcodeLike(cleaned)) {
                     return cleaned;
+                }
+                String corrected = correctBarcodePrefix(cleaned);
+                if (corrected != null) {
+                    return corrected;
                 }
             }
         }
         return "";
+    }
+
+    private static boolean isBarcodeLike(String value) {
+        return value.length() >= 12 && value.length() <= 40
+                && value.matches("\\d{6}[A-Z0-9]{6,}");
+    }
+
+    private static String correctBarcodePrefix(String value) {
+        if (value.length() < 12 || VIN_BODY.matcher(value).matches()) {
+            return null;
+        }
+        String rawPrefix = value.substring(0, 6);
+        // 真实条码前6位是车号数字；至少已有3位数字才做OCR纠正，避免把VIN误判成条码
+        if (countDigits(rawPrefix) < 3) {
+            return null;
+        }
+        String prefix = fixDigits(rawPrefix);
+        if (!prefix.matches("\\d{6}")) {
+            return null;
+        }
+        String rest = value.substring(6);
+        if (!rest.matches("[A-Z0-9]{6,}")) {
+            return null;
+        }
+        return prefix + rest;
+    }
+
+    private static String fixDigits(String value) {
+        StringBuilder builder = new StringBuilder(value.length());
+        for (int i = 0; i < value.length(); i++) {
+            char ch = value.charAt(i);
+            switch (ch) {
+                case 'O':
+                case 'Q':
+                case 'D':
+                    builder.append('0');
+                    break;
+                case 'I':
+                case 'L':
+                    builder.append('1');
+                    break;
+                case 'Z':
+                    builder.append('2');
+                    break;
+                case 'S':
+                    builder.append('5');
+                    break;
+                case 'G':
+                    builder.append('6');
+                    break;
+                case 'T':
+                    builder.append('7');
+                    break;
+                case 'B':
+                    builder.append('8');
+                    break;
+                case 'A':
+                    builder.append('4');
+                    break;
+                case 'P':
+                    builder.append('9');
+                    break;
+                default:
+                    builder.append(ch);
+            }
+        }
+        return builder.toString();
     }
 
     /**

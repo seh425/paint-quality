@@ -63,9 +63,6 @@ public class UserService {
         if (duplicated) {
             throw ApiException.conflict("该检查人姓名已被其他用户使用");
         }
-        if (Boolean.TRUE.equals(request.enabled()) && (area == null || area.isBlank())) {
-            throw ApiException.badRequest("请先设置责任区域后再同意登录");
-        }
 
         user.setInspectorName(name);
         user.setArea(area);

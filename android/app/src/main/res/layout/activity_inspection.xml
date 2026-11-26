@@ -111,7 +111,6 @@
                 android:layout_height="wrap_content"
                 android:orientation="horizontal">
                 <RadioButton android:id="@+id/statusNaButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="NA" />
-                <RadioButton android:id="@+id/statusOkButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="16dp" android:text="OK" />
                 <RadioButton android:id="@+id/statusNokButton" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="16dp" android:text="NOK" />
             </RadioGroup>
             <com.google.android.material.textfield.TextInputLayout

@@ -1,9 +1,7 @@
 package com.paintshop.quality.data;
 
-import android.app.DownloadManager;
 import android.content.Context;
 import android.net.Uri;
-import android.os.Environment;
 import android.os.Handler;
 import android.os.Looper;
 
@@ -247,11 +245,8 @@ public class ApiClient {
     public void updateUser(User user, Callback<User> callback) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("inspectorName", user.inspectorName);
-        body.put("area", user.area);
-        body.put("checkArea", user.checkArea);
         body.put("role", user.role);
         body.put("enabled", user.enabled);
-        body.put("email", user.email);
         request("PATCH", "/api/admin/users/" + user.id, body, User.class, callback);
     }
 
@@ -302,24 +297,6 @@ public class ApiClient {
             builder.header("Authorization", "Bearer " + token);
         }
         enqueue(builder.build(), Void.class, callback);
-    }
-
-    public long downloadExcel(String date) {
-        DownloadManager.Request request = new DownloadManager.Request(
-                Uri.parse(url("/api/excel/" + Uri.encode(date) + ".xlsx")));
-        String token = session.getToken();
-        if (token != null && !token.isEmpty()) {
-            request.addRequestHeader("Authorization", "Bearer " + token);
-        }
-        request.setTitle("质量检查记录 " + date)
-                .setMimeType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
-                .setNotificationVisibility(DownloadManager.Request.VISIBILITY_VISIBLE_NOTIFY_COMPLETED)
-                .setDestinationInExternalFilesDir(context, Environment.DIRECTORY_DOWNLOADS,
-                        "quality-" + date + "-" + System.currentTimeMillis() + ".xlsx")
-                .setAllowedOverMetered(true)
-                .setAllowedOverRoaming(true);
-        DownloadManager manager = (DownloadManager) context.getSystemService(Context.DOWNLOAD_SERVICE);
-        return manager.enqueue(request);
     }
 
     public void downloadExcelToFile(String date, java.io.File target,

@@ -65,7 +65,6 @@ public class InspectionActivity extends AppCompatActivity {
     private TextInputLayout issueNoteLayout;
     private RadioGroup statusGroup;
     private RadioButton statusNaButton;
-    private RadioButton statusOkButton;
     private RadioButton statusNokButton;
     private Button previousButton;
     private Button nextButton;
@@ -148,7 +147,6 @@ public class InspectionActivity extends AppCompatActivity {
         issueNoteLayout = findViewById(R.id.issueNoteLayout);
         statusGroup = findViewById(R.id.statusGroup);
         statusNaButton = findViewById(R.id.statusNaButton);
-        statusOkButton = findViewById(R.id.statusOkButton);
         statusNokButton = findViewById(R.id.statusNokButton);
         previousButton = findViewById(R.id.previousButton);
         nextButton = findViewById(R.id.nextButton);
@@ -272,9 +270,7 @@ public class InspectionActivity extends AppCompatActivity {
         vehicleNumberInput.setText(nullToEmpty(vehicle.vehicleNumber));
         modelNameDropdown.setText(nullToEmpty(vehicle.vehicleModel), false);
         issueNoteInput.setText(nullToEmpty(vehicle.issueNote));
-        if ("OK".equals(vehicle.status)) {
-            statusGroup.check(R.id.statusOkButton);
-        } else if ("NOK".equals(vehicle.status)) {
+        if ("NOK".equals(vehicle.status)) {
             statusGroup.check(R.id.statusNokButton);
         } else {
             statusGroup.check(R.id.statusNaButton);
@@ -304,9 +300,7 @@ public class InspectionActivity extends AppCompatActivity {
                 break;
             }
         }
-        if (statusGroup.getCheckedRadioButtonId() == R.id.statusOkButton) {
-            vehicle.status = "OK";
-        } else if (statusGroup.getCheckedRadioButtonId() == R.id.statusNokButton) {
+        if (statusGroup.getCheckedRadioButtonId() == R.id.statusNokButton) {
             vehicle.status = "NOK";
         } else {
             vehicle.status = "NA";

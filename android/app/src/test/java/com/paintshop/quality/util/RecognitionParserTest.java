@@ -38,7 +38,15 @@ public class RecognitionParserTest {
         assertFalse(RecognitionParser.isValidVin("1HGCM82633A00435O"));
         assertFalse(RecognitionParser.isValidVin("1HGCM82633A00435Q"));
         assertFalse(RecognitionParser.isValidVin("1HGCM82633A00435"));
-        assertEquals("", RecognitionParser.extractVin("VIN=1HGCM82633A00435I"));
+        assertEquals("", RecognitionParser.extractVin("VIN=1HGCM82633A00435"));
+    }
+
+    @Test
+    public void correctsCommonOcrVinConfusion() {
+        assertEquals("1HGCM82633A004351",
+                RecognitionParser.extractVin("VIN=1HGCM82633A00435I"));
+        assertEquals("1HGCM82633A004350",
+                RecognitionParser.extractVin("VIN=1HGCM82633A00435O"));
     }
 
     @Test

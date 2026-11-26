@@ -3,6 +3,14 @@ package com.paintshop.quality.ui;
 import android.Manifest;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
+import android.graphics.Canvas;
+import android.graphics.ColorMatrix;
+import android.graphics.ColorMatrixColorFilter;
+import android.graphics.Matrix;
+import android.graphics.Paint;
+import android.media.ExifInterface;
 import android.net.Uri;
 import android.os.Bundle;
 import android.view.View;
@@ -13,7 +21,6 @@ import android.widget.Toast;
 
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.camera.core.CameraSelector;
 import androidx.camera.core.ImageCapture;
@@ -39,9 +46,12 @@ import com.paintshop.quality.util.RecognitionParser;
 
 import java.io.File;
 import java.io.IOException;
+import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 public class ScanActivity extends AppCompatActivity {
     public static final String EXTRA_MODEL_CODES = "modelCodes";
@@ -53,6 +63,9 @@ public class ScanActivity extends AppCompatActivity {
     public static final String RESULT_VEHICLE_NUMBERS = "vehicleNumbers";
     public static final String RESULT_MODEL_CODE_LIST = "modelCodeList";
 
+    private static final int MAX_SIDE = 2000;
+    private static final int MAX_PASS = 3;
+
     private PreviewView previewView;
     private TextView statusText;
     private ProgressBar progressBar;
@@ -63,6 +76,11 @@ public class ScanActivity extends AppCompatActivity {
     private boolean batchMode;
     private ActivityResultLauncher<String> permissionLauncher;
     private ActivityResultLauncher<String> pickLauncher;
+    private final ExecutorService analyzerExecutor = Executors.newSingleThreadExecutor();
+
+    private interface AnalysisCallback {
+        void onResult(String barcode, String text);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -121,6 +139,12 @@ public class ScanActivity extends AppCompatActivity {
         }
     }
 
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        analyzerExecutor.shutdownNow();
+    }
+
     private void startCamera() {
         statusText.setText("正在启动相机…");
         ListenableFuture<ProcessCameraProvider> providerFuture = ProcessCameraProvider.getInstance(this);
@@ -130,7 +154,7 @@ public class ScanActivity extends AppCompatActivity {
                 Preview preview = new Preview.Builder().build();
                 preview.setSurfaceProvider(previewView.getSurfaceProvider());
                 imageCapture = new ImageCapture.Builder()
-                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MINIMIZE_LATENCY)
+                        .setCaptureMode(ImageCapture.CAPTURE_MODE_MAXIMIZE_QUALITY)
                         .build();
                 provider.unbindAll();
                 provider.bindToLifecycle(this, CameraSelector.DEFAULT_BACK_CAMERA,
@@ -177,57 +201,208 @@ public class ScanActivity extends AppCompatActivity {
     }
 
     private void recognize(File photo) {
-        statusText.setText("正在设备端识别条码和文本…");
-        InputImage image;
-        try {
-            image = InputImage.fromFilePath(this, Uri.fromFile(photo));
-        } catch (IOException | RuntimeException error) {
-            photo.delete();
-            setRecognizing(false);
-            statusText.setText("照片读取失败，请重试或返回手输");
+        statusText.setText("正在设备端识别条码和文本，模糊照片会自动增强重试…");
+        analyzeUri(Uri.fromFile(photo), new AnalysisCallback() {
+            @Override
+            public void onResult(String barcode, String text) {
+                photo.delete();
+                handleSingleResult(barcode, text);
+            }
+        });
+    }
+
+    private void handleSingleResult(String barcode, String text) {
+        String vin = RecognitionParser.extractVin(text, barcode);
+        String vehicleNumber = RecognitionParser.vehicleNumberFromBarcode(barcode);
+        String modelCode = RecognitionParser.modelCodeFromBarcode(barcode);
+        if (modelCode.isEmpty()) {
+            modelCode = RecognitionParser.matchingModelCode(text, modelCodes);
+        }
+        setRecognizing(false);
+        if (vehicleNumber.isEmpty() && modelCode.isEmpty() && vin.isEmpty()) {
+            statusText.setText("未识别到条码车号、车型或VIN，请重拍或返回手输");
+            Toast.makeText(this, "未可靠识别，不会自动编造结果", Toast.LENGTH_LONG).show();
             return;
         }
+        deliverResult(vin, vehicleNumber, modelCode);
+    }
+
+    /**
+     * 本地解码并做多轮识别：原图 → 灰度增强 → 增强后旋转90° → 增强后旋转270°。
+     * 只有前一轮完全无结果时才继续，兼顾速度与弱光/轻微模糊场景。
+     */
+    private void analyzeUri(Uri uri, AnalysisCallback callback) {
+        analyzerExecutor.execute(() -> {
+            Bitmap bitmap = decodeSampled(uri);
+            if (bitmap == null) {
+                postResult(callback, "", "");
+                return;
+            }
+            try {
+                analyzePass(bitmap, 0, new ArrayList<>(), new StringBuilder(), callback);
+            } catch (RuntimeException error) {
+                bitmap.recycle();
+                postResult(callback, "", "");
+            }
+        });
+    }
+
+    private void analyzePass(Bitmap base, int pass, List<String> barcodes,
+                             StringBuilder texts, AnalysisCallback callback) {
+        Bitmap working = base;
+        int rotation = 0;
+        if (pass > 0) {
+            working = enhance(base);
+            if (pass == 2) {
+                rotation = 90;
+            } else if (pass == 3) {
+                rotation = 270;
+            }
+        }
+        final Bitmap source = working;
+        InputImage image = InputImage.fromBitmap(source, rotation);
         BarcodeScanner barcodeScanner = BarcodeScanning.getClient();
         TextRecognizer textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
         Task<List<Barcode>> barcodeTask = barcodeScanner.process(image);
         Task<Text> textTask = textRecognizer.process(image);
-        Tasks.whenAllComplete(barcodeTask, textTask).addOnCompleteListener(combined -> {
-            List<String> barcodeValues = new ArrayList<>();
-            if (barcodeTask.isSuccessful() && barcodeTask.getResult() != null) {
-                for (Barcode barcode : barcodeTask.getResult()) {
-                    if (barcode.getRawValue() != null) {
-                        barcodeValues.add(barcode.getRawValue());
+        Tasks.whenAllComplete(barcodeTask, textTask).addOnCompleteListener(analyzerExecutor, done -> {
+            try {
+                if (barcodeTask.isSuccessful() && barcodeTask.getResult() != null) {
+                    for (Barcode barcode : barcodeTask.getResult()) {
+                        if (barcode.getRawValue() != null) {
+                            barcodes.add(barcode.getRawValue());
+                        }
                     }
                 }
+                if (textTask.isSuccessful() && textTask.getResult() != null) {
+                    texts.append('\n').append(textTask.getResult().getText());
+                }
+            } catch (RuntimeException ignored) {
+                // 单轮识别异常不影响后续轮次
+            } finally {
+                barcodeScanner.close();
+                textRecognizer.close();
+                if (source != base) {
+                    source.recycle();
+                }
             }
-            String text = textTask.isSuccessful() && textTask.getResult() != null
-                    ? textTask.getResult().getText() : "";
-            String barcode = RecognitionParser.barcodeCandidate(
-                    barcodeValues.toArray(new String[0]));
-            if (barcode.isEmpty()) {
-                barcode = RecognitionParser.barcodeCandidate(text);
-            }
-            String vin = RecognitionParser.extractVin(text, barcode);
-            String vehicleNumber = RecognitionParser.vehicleNumberFromBarcode(barcode);
-            String modelCode = RecognitionParser.modelCodeFromBarcode(barcode);
-            barcodeScanner.close();
-            textRecognizer.close();
-            photo.delete();
 
-            if (!barcodeTask.isSuccessful() && !textTask.isSuccessful()) {
-                setRecognizing(false);
-                statusText.setText("识别服务失败，请重试或返回手输");
-                Toast.makeText(this, "条码和文本识别均失败", Toast.LENGTH_LONG).show();
+            String combinedText = texts.toString();
+            if (!hasReliableCandidate(barcodes, combinedText) && pass < MAX_PASS) {
+                analyzePass(base, pass + 1, barcodes, texts, callback);
                 return;
             }
-            if (vehicleNumber.isEmpty() && modelCode.isEmpty() && vin.isEmpty()) {
-                setRecognizing(false);
-                statusText.setText("未识别到条码车号、车型或VIN，请重拍或返回手输");
-                Toast.makeText(this, "未可靠识别，不会自动编造结果", Toast.LENGTH_LONG).show();
-                return;
+            String barcode = RecognitionParser.barcodeCandidate(
+                    barcodes.toArray(new String[0]));
+            if (barcode.isEmpty()) {
+                barcode = RecognitionParser.barcodeCandidate(combinedText);
             }
-            deliverResult(vin, vehicleNumber, modelCode);
+            base.recycle();
+            postResult(callback, barcode, combinedText);
         });
+    }
+
+    private boolean hasReliableCandidate(List<String> barcodes, String text) {
+        if (!RecognitionParser.barcodeCandidate(barcodes.toArray(new String[0])).isEmpty()) {
+            return true;
+        }
+        if (!RecognitionParser.barcodeCandidate(text).isEmpty()) {
+            return true;
+        }
+        if (!RecognitionParser.extractVin(text).isEmpty()) {
+            return true;
+        }
+        return !RecognitionParser.matchingModelCode(text, modelCodes).isEmpty();
+    }
+
+    private void postResult(AnalysisCallback callback, String barcode, String text) {
+        runOnUiThread(() -> {
+            if (!isFinishing() && !isDestroyed()) {
+                callback.onResult(barcode, text);
+            }
+        });
+    }
+
+    private Bitmap decodeSampled(Uri uri) {
+        try {
+            BitmapFactory.Options bounds = new BitmapFactory.Options();
+            bounds.inJustDecodeBounds = true;
+            try (InputStream input = getContentResolver().openInputStream(uri)) {
+                if (input == null) {
+                    return null;
+                }
+                BitmapFactory.decodeStream(input, null, bounds);
+            }
+            if (bounds.outWidth <= 0 || bounds.outHeight <= 0) {
+                return null;
+            }
+            int sample = 1;
+            while (Math.max(bounds.outWidth, bounds.outHeight) / sample > MAX_SIDE) {
+                sample *= 2;
+            }
+            BitmapFactory.Options options = new BitmapFactory.Options();
+            options.inSampleSize = sample;
+            Bitmap bitmap;
+            try (InputStream input = getContentResolver().openInputStream(uri)) {
+                if (input == null) {
+                    return null;
+                }
+                bitmap = BitmapFactory.decodeStream(input, null, options);
+            }
+            if (bitmap == null) {
+                return null;
+            }
+            int orientation = ExifInterface.ORIENTATION_NORMAL;
+            try (InputStream input = getContentResolver().openInputStream(uri)) {
+                if (input != null) {
+                    orientation = new ExifInterface(input)
+                            .getAttributeInt(ExifInterface.TAG_ORIENTATION,
+                                    ExifInterface.ORIENTATION_NORMAL);
+                }
+            } catch (IOException ignored) {
+                // 读取EXIF失败时按正常方向处理
+            }
+            return applyOrientation(bitmap, orientation);
+        } catch (IOException | RuntimeException error) {
+            return null;
+        }
+    }
+
+    private Bitmap applyOrientation(Bitmap bitmap, int orientation) {
+        Matrix matrix = new Matrix();
+        if (orientation == ExifInterface.ORIENTATION_ROTATE_90) {
+            matrix.postRotate(90);
+        } else if (orientation == ExifInterface.ORIENTATION_ROTATE_180) {
+            matrix.postRotate(180);
+        } else if (orientation == ExifInterface.ORIENTATION_ROTATE_270) {
+            matrix.postRotate(270);
+        } else {
+            return bitmap;
+        }
+        Bitmap rotated = Bitmap.createBitmap(bitmap, 0, 0,
+                bitmap.getWidth(), bitmap.getHeight(), matrix, true);
+        if (rotated != bitmap) {
+            bitmap.recycle();
+        }
+        return rotated;
+    }
+
+    private Bitmap enhance(Bitmap source) {
+        Bitmap result = Bitmap.createBitmap(source.getWidth(), source.getHeight(),
+                Bitmap.Config.ARGB_8888);
+        Canvas canvas = new Canvas(result);
+        Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
+        ColorMatrix grayscale = new ColorMatrix();
+        grayscale.setSaturation(0f);
+        ColorMatrix contrast = new ColorMatrix(new float[]{
+                1.6f, 0, 0, 0, -45,
+                0, 1.6f, 0, 0, -45,
+                0, 0, 1.6f, 0, -45,
+                0, 0, 0, 1, 0});
+        grayscale.postConcat(contrast);
+        paint.setColorFilter(new ColorMatrixColorFilter(grayscale));
+        canvas.drawBitmap(source, 0, 0, paint);
+        return result;
     }
 
     private void openBatchPicker() {
@@ -264,44 +439,22 @@ public class ScanActivity extends AppCompatActivity {
             return;
         }
         statusText.setText("正在识别第 " + (index + 1) + "/" + uris.size() + " 张…");
-        InputImage image;
-        try {
-            image = InputImage.fromFilePath(this, uris.get(index));
-        } catch (IOException | RuntimeException error) {
-            processBatchImage(uris, index + 1, vins, numbers, codes);
-            return;
-        }
-        BarcodeScanner barcodeScanner = BarcodeScanning.getClient();
-        TextRecognizer textRecognizer = TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS);
-        Task<List<Barcode>> barcodeTask = barcodeScanner.process(image);
-        Task<Text> textTask = textRecognizer.process(image);
-        Tasks.whenAllComplete(barcodeTask, textTask).addOnCompleteListener(combined -> {
-            List<String> barcodeValues = new ArrayList<>();
-            if (barcodeTask.isSuccessful() && barcodeTask.getResult() != null) {
-                for (Barcode barcode : barcodeTask.getResult()) {
-                    if (barcode.getRawValue() != null) {
-                        barcodeValues.add(barcode.getRawValue());
+        analyzeUri(uris.get(index), new AnalysisCallback() {
+            @Override
+            public void onResult(String barcode, String text) {
+                String vin = RecognitionParser.extractVin(text, barcode);
+                String vehicleNumber = RecognitionParser.vehicleNumberFromBarcode(barcode);
+                String modelCode = RecognitionParser.modelCodeFromBarcode(barcode);
+                if (!vehicleNumber.isEmpty()) {
+                    if (modelCode.isEmpty()) {
+                        modelCode = RecognitionParser.matchingModelCode(text, modelCodes);
                     }
+                    numbers.add(vehicleNumber);
+                    codes.add(modelCode);
+                    vins.add(vin);
                 }
+                processBatchImage(uris, index + 1, vins, numbers, codes);
             }
-            String text = textTask.isSuccessful() && textTask.getResult() != null
-                    ? textTask.getResult().getText() : "";
-            String barcode = RecognitionParser.barcodeCandidate(
-                    barcodeValues.toArray(new String[0]));
-            if (barcode.isEmpty()) {
-                barcode = RecognitionParser.barcodeCandidate(text);
-            }
-            String vin = RecognitionParser.extractVin(text, barcode);
-            String vehicleNumber = RecognitionParser.vehicleNumberFromBarcode(barcode);
-            String modelCode = RecognitionParser.modelCodeFromBarcode(barcode);
-            barcodeScanner.close();
-            textRecognizer.close();
-            if (!vehicleNumber.isEmpty() || !modelCode.isEmpty()) {
-                numbers.add(vehicleNumber);
-                codes.add(modelCode);
-                vins.add(vin);
-            }
-            processBatchImage(uris, index + 1, vins, numbers, codes);
         });
     }
 
@@ -318,6 +471,6 @@ public class ScanActivity extends AppCompatActivity {
     private void setRecognizing(boolean value) {
         recognizing = value;
         progressBar.setVisibility(value ? View.VISIBLE : View.GONE);
-        captureButton.setEnabled(!value && imageCapture != null);
+        captureButton.setEnabled(!value && (batchMode || imageCapture != null));
     }
 }
