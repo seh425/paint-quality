@@ -2,11 +2,11 @@ spring:
   application:
     name: paint-quality-server
   datasource:
-    url: "${SPRING_DATASOURCE_URL:jdbc:h2:file:${APP_DATA_DIR:./data}/paint-quality;DB_CLOSE_ON_EXIT=FALSE}"
-    username: "${SPRING_DATASOURCE_USERNAME:sa}"
-    password: "${SPRING_DATASOURCE_PASSWORD:}"
+    url: "${SPRING_DATASOURCE_URL:${DB_URL:jdbc:h2:file:${APP_DATA_DIR:./data}/paint-quality;DB_CLOSE_ON_EXIT=FALSE}}"
+    username: "${SPRING_DATASOURCE_USERNAME:${DB_USERNAME:sa}}"
+    password: "${SPRING_DATASOURCE_PASSWORD:${DB_PASSWORD:}}"
     hikari:
-      maximum-pool-size: 10
+      maximum-pool-size: ${DB_POOL_SIZE:10}
   jpa:
     open-in-view: false
     hibernate:
