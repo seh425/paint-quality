@@ -1,6 +1,8 @@
 package com.paintshop.quality.ui;
 
 import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.content.Intent;
 import android.database.Cursor;
 import android.net.Uri;
@@ -362,6 +364,7 @@ public class AdminActivity extends AppCompatActivity {
                     + " 质量检查记录（共" + files.size() + "个检查区域），请查收。");
             base.setClipData(clipData);
             base.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+            copyRecipient(email);
             shareInFlight = true;
             String mailPackage = defaultMailPackage();
             if (mailPackage != null) {
@@ -379,6 +382,16 @@ public class AdminActivity extends AppCompatActivity {
             showLongError("无法打开邮件客户端",
                     "请确认手机已安装并登录邮箱APP。\n" + error.getMessage());
         }
+    }
+
+    private void copyRecipient(String email) {
+        ClipboardManager clipboard = (ClipboardManager) getSystemService(Context.CLIPBOARD_SERVICE);
+        if (clipboard == null) {
+            return;
+        }
+        clipboard.setPrimaryClip(ClipData.newPlainText("收件人", email));
+        Toast.makeText(this, "收件人已复制：" + email
+                + "\n若邮件收件人为空，请长按收件人栏粘贴", Toast.LENGTH_LONG).show();
     }
 
     private String defaultMailPackage() {
