@@ -1,6 +1,7 @@
 package com.example.paintquality.user;
 
 import com.example.paintquality.auth.AuthTokenRepository;
+import com.example.paintquality.auth.PasswordHasher;
 import com.example.paintquality.common.ApiException;
 import com.example.paintquality.excel.AreaCatalog;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -122,6 +123,14 @@ public class UserService {
                 .orElseThrow(() -> ApiException.notFound("用户不存在"));
         user.setEmail(UserValues.email(email));
         return UserResponse.from(userRepository.save(user));
+    }
+
+    @Transactional
+    public void updateOwnPassword(Long userId, String newPassword) {
+        InspectorUser user = userRepository.findById(userId)
+                .orElseThrow(() -> ApiException.notFound("用户不存在"));
+        user.setPasswordHash(PasswordHasher.hash(UserValues.password(newPassword)));
+        userRepository.saveAndFlush(user);
     }
 
     @Transactional

@@ -286,6 +286,12 @@ public class ApiClient {
         request("PUT", "/api/profile/email", body, Void.class, callback);
     }
 
+    public void changePassword(String newPassword, Callback<Void> callback) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("newPassword", newPassword);
+        request("PUT", "/api/profile/password", body, Void.class, callback);
+    }
+
     public void uploadTemplate(Uri uri, String fileName, String area, Callback<Void> callback) {
         RequestBody fileBody = new RequestBody() {
             @Override

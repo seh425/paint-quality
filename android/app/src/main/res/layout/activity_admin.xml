@@ -81,6 +81,16 @@
             android:id="@+id/excelDateSpinner"
             android:layout_width="match_parent"
             android:layout_height="48dp" />
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="责任区域（导出该区域下全部检查区域）"
+            android:textStyle="bold" />
+        <Spinner
+            android:id="@+id/excelAreaSpinner"
+            android:layout_width="match_parent"
+            android:layout_height="48dp" />
         <Button
             android:id="@+id/sendEmailButton"
             android:layout_width="match_parent"

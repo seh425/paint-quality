@@ -29,6 +29,9 @@ import androidx.camera.core.Preview;
 import androidx.camera.lifecycle.ProcessCameraProvider;
 import androidx.camera.view.PreviewView;
 import androidx.core.content.ContextCompat;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.gms.tasks.Task;
 import com.google.android.gms.tasks.Tasks;
@@ -82,10 +85,22 @@ public class ScanActivity extends AppCompatActivity {
         void onResult(String barcode, String text);
     }
 
+    private void applyWindowInsets() {
+        View root = findViewById(R.id.scanRoot);
+        int base = Math.round(12 * getResources().getDisplayMetrics().density);
+        int extra = Math.round(8 * getResources().getDisplayMetrics().density);
+        ViewCompat.setOnApplyWindowInsetsListener(root, (view, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            view.setPadding(base, base + bars.top + extra, base, base + bars.bottom + extra);
+            return insets;
+        });
+    }
+
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_scan);
+        applyWindowInsets();
         previewView = findViewById(R.id.cameraPreview);
         statusText = findViewById(R.id.scanStatusText);
         progressBar = findViewById(R.id.scanProgress);

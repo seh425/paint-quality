@@ -57,6 +57,8 @@ public class AdminActivity extends AppCompatActivity {
     private ArrayAdapter<String> dateAdapter;
     private final List<String> excelDates = new ArrayList<>();
     private String selectedDate;
+    private Spinner excelAreaSpinner;
+    private String selectedExcelArea = "";
     private EditText newModelCodeInput;
     private EditText newModelNameInput;
     private TextView selectedTemplateText;
@@ -94,6 +96,7 @@ public class AdminActivity extends AppCompatActivity {
         uploadTemplateButton = findViewById(R.id.uploadTemplateButton);
         findViewById(R.id.primarySection).setVisibility(View.VISIBLE);
         setupDates();
+        setupExcelArea();
         setupLists();
         setupActions();
         loadExcelDates();
@@ -195,6 +198,43 @@ public class AdminActivity extends AppCompatActivity {
         });
     }
 
+    private void setupExcelArea() {
+        String preferred = nullToEmpty(currentUser.area).trim();
+        if (currentUser.isPrimaryAdmin()) {
+            String last = sessionManager.getLastArea();
+            if (AreaCatalog.responsibilities().contains(last)) {
+                preferred = last;
+            }
+        }
+        List<String> options = new ArrayList<>();
+        if (currentUser.isPrimaryAdmin()) {
+            options.addAll(AreaCatalog.responsibilities());
+        } else if (AreaCatalog.responsibilities().contains(preferred)) {
+            options.add(preferred);
+        }
+        excelAreaSpinner = findViewById(R.id.excelAreaSpinner);
+        ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
+                android.R.layout.simple_spinner_item, options);
+        adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        excelAreaSpinner.setAdapter(adapter);
+        selectedExcelArea = options.isEmpty() ? "" : options.get(0);
+        excelAreaSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override
+            public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                selectedExcelArea = options.get(position);
+            }
+
+            @Override
+            public void onNothingSelected(AdapterView<?> parent) {
+                selectedExcelArea = "";
+            }
+        });
+        int index = options.indexOf(preferred);
+        if (index > 0) {
+            excelAreaSpinner.setSelection(index);
+        }
+    }
+
     private void setupLists() {
         RecyclerView usersList = findViewById(R.id.usersList);
         usersList.setLayoutManager(new LinearLayoutManager(this));
@@ -270,36 +310,19 @@ public class AdminActivity extends AppCompatActivity {
             emailInput.setError("请先填写并保存我的邮箱");
             return;
         }
+        String responsibility = selectedExcelArea;
+        if (responsibility == null || responsibility.isEmpty()) {
+            Toast.makeText(this, "请选择责任区域", Toast.LENGTH_LONG).show();
+            return;
+        }
+        List<String> targets = AreaCatalog.checkAreas(responsibility);
+        if (targets.isEmpty()) {
+            showLongError("没有可导出的检查区域", "责任区域“" + responsibility + "”下没有可用检查区域");
+            return;
+        }
         final Button button = findViewById(R.id.sendEmailButton);
         button.setEnabled(false);
-        apiClient.getExcelAreas(new ApiClient.Callback<List<String>>() {
-            @Override
-            public void onSuccess(List<String> areas) {
-                List<String> targets = areas == null || areas.isEmpty()
-                        ? fallbackExcelAreas() : areas;
-                downloadAll(targets, email, button);
-            }
-
-            @Override
-            public void onError(String message) {
-                downloadAll(fallbackExcelAreas(), email, button);
-            }
-        });
-    }
-
-    private List<String> fallbackExcelAreas() {
-        if (currentUser.isPrimaryAdmin()) {
-            return AreaCatalog.allCheckAreas();
-        }
-        List<String> allowed = AreaCatalog.checkAreas(currentUser.area);
-        if (!allowed.isEmpty()) {
-            return allowed;
-        }
-        List<String> single = new ArrayList<>();
-        if (!nullToEmpty(currentUser.checkArea).isEmpty()) {
-            single.add(currentUser.checkArea);
-        }
-        return single;
+        downloadAll(targets, email, button);
     }
 
     private void downloadAll(List<String> areas, String email, Button button) {
@@ -543,6 +566,11 @@ public class AdminActivity extends AppCompatActivity {
         Spinner roleSpinner = view.findViewById(R.id.editUserRoleSpinner);
         TextView roleLabel = view.findViewById(R.id.editUserRoleLabel);
         CheckBox enabledCheck = view.findViewById(R.id.editUserEnabledCheck);
+        View passwordSection = view.findViewById(R.id.editPasswordSection);
+        EditText newPasswordInput = view.findViewById(R.id.editNewPasswordInput);
+        EditText confirmPasswordInput = view.findViewById(R.id.editConfirmPasswordInput);
+        boolean editingSelf = original.id == currentUser.id;
+        passwordSection.setVisibility(editingSelf ? View.VISIBLE : View.GONE);
         nameInput.setText(nullToEmpty(original.inspectorName));
         enabledCheck.setChecked(original.enabled);
         boolean canSetRole = currentUser.isPrimaryAdmin();
@@ -582,6 +610,17 @@ public class AdminActivity extends AppCompatActivity {
                         Toast.makeText(this, "姓名不能为空", Toast.LENGTH_SHORT).show();
                         return;
                     }
+                    String newPassword = newPasswordInput.getText().toString();
+                    if (editingSelf && !newPassword.isEmpty()) {
+                        if (newPassword.length() < 6) {
+                            Toast.makeText(this, "登录密码至少6位", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                        if (!newPassword.equals(confirmPasswordInput.getText().toString())) {
+                            Toast.makeText(this, "两次输入的密码不一致", Toast.LENGTH_SHORT).show();
+                            return;
+                        }
+                    }
                     User updated = copyUser(original);
                     updated.inspectorName = name;
                     updated.enabled = enabledCheck.isChecked();
@@ -597,9 +636,30 @@ public class AdminActivity extends AppCompatActivity {
                                 currentUser = response == null ? updated : response;
                                 sessionManager.updateUser(currentUser);
                             }
-                            dialog.dismiss();
-                            Toast.makeText(AdminActivity.this, "人员信息已保存", Toast.LENGTH_SHORT).show();
-                            loadUsers();
+                            if (newPassword.isEmpty()) {
+                                dialog.dismiss();
+                                Toast.makeText(AdminActivity.this, "人员信息已保存",
+                                        Toast.LENGTH_SHORT).show();
+                                loadUsers();
+                                return;
+                            }
+                            apiClient.changePassword(newPassword, new ApiClient.Callback<Void>() {
+                                @Override
+                                public void onSuccess(Void ignored) {
+                                    dialog.dismiss();
+                                    Toast.makeText(AdminActivity.this,
+                                            "人员信息与登录密码已保存", Toast.LENGTH_SHORT).show();
+                                    loadUsers();
+                                }
+
+                                @Override
+                                public void onError(String message) {
+                                    saveButton.setEnabled(true);
+                                    Toast.makeText(AdminActivity.this,
+                                            "人员信息已保存，登录密码修改失败：" + message,
+                                            Toast.LENGTH_LONG).show();
+                                }
+                            });
                         }
 
                         @Override
