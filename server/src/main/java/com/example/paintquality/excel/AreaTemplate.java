@@ -5,9 +5,11 @@ import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
-import jakarta.persistence.Lob;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
+
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 import java.time.Instant;
 
@@ -23,8 +25,8 @@ public class AreaTemplate {
     @Column(nullable = false, length = 50)
     private String area;
 
-    @Lob
-    @Column(name = "content_base64", nullable = false)
+    @JdbcTypeCode(SqlTypes.LONGVARCHAR)
+    @Column(name = "content_base64", nullable = false, length = 10_000_000)
     private String contentBase64;
 
     @Column(name = "updated_at", nullable = false)
