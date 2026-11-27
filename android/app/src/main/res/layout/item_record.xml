@@ -2,32 +2,35 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:layout_marginBottom="8dp"
+    android:layout_marginBottom="6dp"
     android:background="@color/surface_muted"
     android:orientation="vertical"
-    android:padding="12dp">
+    android:padding="10dp">
     <TextView
         android:id="@+id/recordHeaderText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:textColor="@color/navy"
-        android:textSize="17sp"
+        android:textSize="14sp"
         android:textStyle="bold" />
     <TextView
         android:id="@+id/recordVehicleText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp" />
+        android:layout_marginTop="2dp"
+        android:textSize="13sp" />
     <TextView
         android:id="@+id/recordInspectorText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp" />
+        android:layout_marginTop="2dp"
+        android:textSize="12sp" />
     <TextView
         android:id="@+id/recordIssueText"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="4dp"
+        android:layout_marginTop="2dp"
         android:textColor="@color/nok_red"
+        android:textSize="12sp"
         android:visibility="gone" />
 </LinearLayout>

@@ -43,6 +43,7 @@ public class AuthService {
     @Transactional
     public AuthResponse register(AuthRequest request) {
         String name = UserValues.name(request.inspectorName());
+        String password = UserValues.password(request.password());
         boolean exists = userRepository.findAllByInspectorName(name).stream()
                 .anyMatch(user -> !user.isDeleted());
         if (exists) {
@@ -50,7 +51,7 @@ public class AuthService {
         }
 
         InspectorUser user = new InspectorUser(name, "", Role.USER, false);
-        user.setCheckArea(UserValues.checkArea(request.checkArea()));
+        user.setPasswordHash(PasswordHasher.hash(password));
         try {
             userRepository.saveAndFlush(user);
         } catch (DataIntegrityViolationException exception) {
@@ -62,7 +63,9 @@ public class AuthService {
     @Transactional
     public AuthResponse login(AuthRequest request) {
         String name = UserValues.name(request.inspectorName());
-        String area = UserValues.area(request.area());
+        String password = UserValues.password(request.password());
+        String area = request.area() == null || request.area().isBlank()
+                ? null : UserValues.area(request.area());
         String checkArea = UserValues.checkArea(request.checkArea());
         List<InspectorUser> candidates = userRepository.findAllByInspectorName(name).stream()
                 .filter(user -> !user.isDeleted())
@@ -75,7 +78,7 @@ public class AuthService {
             user = candidates.get(0);
         } else {
             user = candidates.stream()
-                    .filter(candidate -> area.equals(candidate.getArea()))
+                    .filter(candidate -> area != null && area.equals(candidate.getArea()))
                     .findFirst()
                     .or(() -> checkArea == null ? Optional.empty() : candidates.stream()
                             .filter(candidate -> checkArea.equals(candidate.getCheckArea()))
@@ -85,7 +88,14 @@ public class AuthService {
         if (!user.isEnabled()) {
             throw ApiException.forbidden("账号尚未通过管理员审核或已被禁用");
         }
-        user.setArea(area);
+        if (user.getPasswordHash() == null || user.getPasswordHash().isBlank()) {
+            user.setPasswordHash(PasswordHasher.hash(password));
+        } else if (!PasswordHasher.verify(password, user.getPasswordHash())) {
+            throw ApiException.unauthorized("登录密码不正确");
+        }
+        if (area != null) {
+            user.setArea(area);
+        }
         if (checkArea != null) {
             user.setCheckArea(checkArea);
         }

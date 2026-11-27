@@ -33,6 +33,7 @@ app:
   bootstrap-admin:
     name: ${APP_BOOTSTRAP_ADMIN_NAME:admin}
     area: ${APP_BOOTSTRAP_ADMIN_AREA:ADMIN}
+    password: ${APP_BOOTSTRAP_ADMIN_PASSWORD:admin123}
 
 logging:
   level:

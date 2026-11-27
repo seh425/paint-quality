@@ -159,24 +159,28 @@ public class ApiClient {
         });
     }
 
-    private Map<String, Object> fields(String inspectorName, String area, String checkArea) {
+    private Map<String, Object> fields(String inspectorName, String password) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("inspectorName", inspectorName);
-        body.put("area", area);
-        body.put("checkArea", checkArea);
+        body.put("password", password);
         return body;
     }
 
-    public void register(String inspectorName, Callback<AuthResponse> callback) {
-        Map<String, Object> body = new LinkedHashMap<>();
-        body.put("inspectorName", inspectorName);
-        request("POST", "/api/auth/register", body, AuthResponse.class, callback);
+    public void register(String inspectorName, String password, Callback<AuthResponse> callback) {
+        request("POST", "/api/auth/register", fields(inspectorName, password),
+                AuthResponse.class, callback);
     }
 
-    public void login(String inspectorName, String area, String checkArea,
-                      Callback<AuthResponse> callback) {
-        request("POST", "/api/auth/login", fields(inspectorName, area, checkArea),
+    public void login(String inspectorName, String password, Callback<AuthResponse> callback) {
+        request("POST", "/api/auth/login", fields(inspectorName, password),
                 AuthResponse.class, callback);
+    }
+
+    public void updateMyAreas(String area, String checkArea, Callback<User> callback) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("area", area);
+        body.put("checkArea", checkArea);
+        request("PATCH", "/api/auth/me/areas", body, User.class, callback);
     }
 
     public void logout(Callback<Void> callback) {
@@ -212,7 +216,16 @@ public class ApiClient {
     }
 
     public void listRecords(String date, Callback<List<InspectionRecord>> callback) {
-        request("GET", "/api/records?date=" + Uri.encode(date), null,
+        listRecords(date, null, callback);
+    }
+
+    public void listRecords(String date, String checkArea,
+                            Callback<List<InspectionRecord>> callback) {
+        String path = "/api/records?date=" + Uri.encode(date);
+        if (checkArea != null && !checkArea.trim().isEmpty()) {
+            path += "&checkArea=" + Uri.encode(checkArea.trim());
+        }
+        request("GET", path, null,
                 new TypeToken<List<InspectionRecord>>() { }.getType(), callback);
     }
 
@@ -233,8 +246,21 @@ public class ApiClient {
     }
 
     public void getRounds(Callback<List<RoundInfo>> callback) {
-        request("GET", "/api/rounds", null,
+        getRounds(null, callback);
+    }
+
+    public void getRounds(String checkArea, Callback<List<RoundInfo>> callback) {
+        String path = "/api/rounds";
+        if (checkArea != null && !checkArea.trim().isEmpty()) {
+            path += "?checkArea=" + Uri.encode(checkArea.trim());
+        }
+        request("GET", path, null,
                 new TypeToken<List<RoundInfo>>() { }.getType(), callback);
+    }
+
+    public void getExcelAreas(Callback<List<String>> callback) {
+        request("GET", "/api/excel/areas", null,
+                new TypeToken<List<String>>() { }.getType(), callback);
     }
 
     public void listUsers(Callback<List<User>> callback) {
@@ -301,8 +327,16 @@ public class ApiClient {
 
     public void downloadExcelToFile(String date, java.io.File target,
                                     Callback<java.io.File> callback) {
-        Request.Builder builder = new Request.Builder()
-                .url(url("/api/excel/" + Uri.encode(date) + ".xlsx"));
+        downloadExcelToFile(date, null, target, callback);
+    }
+
+    public void downloadExcelToFile(String date, String checkArea, java.io.File target,
+                                    Callback<java.io.File> callback) {
+        String path = "/api/excel/" + Uri.encode(date) + ".xlsx";
+        if (checkArea != null && !checkArea.trim().isEmpty()) {
+            path += "?checkArea=" + Uri.encode(checkArea.trim());
+        }
+        Request.Builder builder = new Request.Builder().url(url(path));
         String token = session.getToken();
         if (token != null && !token.isEmpty()) {
             builder.header("Authorization", "Bearer " + token);

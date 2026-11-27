@@ -19,6 +19,8 @@ import org.springframework.web.bind.annotation.RequestPart;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.util.List;
+
 @RestController
 @RequestMapping("/api/admin/template")
 @RequireRoles({Role.PRIMARY_ADMIN, Role.SECONDARY_ADMIN})
@@ -53,6 +55,20 @@ public class AdminTemplateController {
 
     private String resolveArea(InspectorUser user, String requestedArea) {
         if (user.getRole() == Role.SECONDARY_ADMIN) {
+            List<String> allowed = AreaCatalog.checkAreas(user.getArea());
+            String requested = requestedArea == null ? "" : requestedArea.trim();
+            if (!allowed.isEmpty()) {
+                if (!requested.isEmpty()) {
+                    if (!allowed.contains(requested)) {
+                        throw ApiException.forbidden("只能上传当前责任区域下的检查区域模板");
+                    }
+                    return requested;
+                }
+                if (user.getCheckArea() != null && allowed.contains(user.getCheckArea())) {
+                    return user.getCheckArea().trim();
+                }
+                return allowed.get(0);
+            }
             if (!TemplateService.isSupportedArea(user.getCheckArea())) {
                 throw ApiException.badRequest("您的检查区域不是有效的模板区域，请联系一级管理员设置");
             }

@@ -20,6 +20,35 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="4dp" />
+        <LinearLayout
+            android:id="@+id/serverSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="服务器地址（仅一级管理员可修改）"
+                android:textStyle="bold" />
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="服务器地址">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/adminServerAddressInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textUri"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <Button
+                android:id="@+id/saveServerButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="保存服务器地址" />
+        </LinearLayout>
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -56,7 +85,7 @@
             android:id="@+id/sendEmailButton"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="一键下载并发送到我的邮箱" />
+            android:text="一键发送本责任区域全部检查区域Excel到我的邮箱" />
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
@@ -73,7 +102,8 @@
             android:id="@+id/templateAreaText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="4dp" />
+            android:layout_marginTop="4dp"
+            android:visibility="gone" />
         <Button
             android:id="@+id/chooseTemplateButton"
             android:layout_width="match_parent"
@@ -162,6 +192,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="20dp"
+            android:layout_marginBottom="16dp"
             android:text="返回" />
     </LinearLayout>
 </ScrollView>

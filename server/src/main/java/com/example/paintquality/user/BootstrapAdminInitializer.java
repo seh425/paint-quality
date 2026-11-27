@@ -1,6 +1,7 @@
 package com.example.paintquality.user;
 
 import com.example.paintquality.AppProperties;
+import com.example.paintquality.auth.PasswordHasher;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
 import org.springframework.stereotype.Component;
@@ -29,6 +30,9 @@ public class BootstrapAdminInitializer implements ApplicationRunner {
                 .orElseGet(() -> new InspectorUser(name, area, Role.PRIMARY_ADMIN, true));
         admin.setRole(Role.PRIMARY_ADMIN);
         admin.setEnabled(true);
+        if (admin.getPasswordHash() == null || admin.getPasswordHash().isBlank()) {
+            admin.setPasswordHash(PasswordHasher.hash(properties.getBootstrapAdmin().getPassword()));
+        }
         userRepository.save(admin);
     }
 }

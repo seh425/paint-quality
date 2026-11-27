@@ -25,11 +25,15 @@ import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.core.content.FileProvider;
+import androidx.core.graphics.Insets;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 import androidx.recyclerview.widget.LinearLayoutManager;
 import androidx.recyclerview.widget.RecyclerView;
 
 import com.paintshop.quality.R;
 import com.paintshop.quality.data.ApiClient;
+import com.paintshop.quality.data.AreaCatalog;
 import com.paintshop.quality.data.SessionManager;
 import com.paintshop.quality.model.User;
 import com.paintshop.quality.model.VehicleModel;
@@ -60,7 +64,7 @@ public class AdminActivity extends AppCompatActivity {
     private UserAdapter userAdapter;
     private ModelAdapter modelAdapter;
     private ActivityResultLauncher<String[]> templateLauncher;
-    private java.io.File pendingShareFile;
+    private final List<java.io.File> pendingShareFiles = new ArrayList<>();
     private boolean shareInFlight;
 
     @Override
@@ -74,11 +78,13 @@ public class AdminActivity extends AppCompatActivity {
             return;
         }
         setContentView(R.layout.activity_admin);
+        applyWindowInsets();
         apiClient = ApiClient.get(this);
         ((TextView) findViewById(R.id.adminRoleText)).setText(
                 currentUser.isPrimaryAdmin() ? "当前角色：一级管理员" : "当前角色：二级管理员");
         emailInput = findViewById(R.id.adminEmailInput);
         emailInput.setText(nullToEmpty(currentUser.email));
+        setupServerAddress();
         setupTemplateArea();
         newModelCodeInput = findViewById(R.id.newModelCodeInput);
         newModelNameInput = findViewById(R.id.newModelNameInput);
@@ -93,46 +99,75 @@ public class AdminActivity extends AppCompatActivity {
         loadModels();
     }
 
+    private void applyWindowInsets() {
+        View content = findViewById(android.R.id.content);
+        ViewCompat.setOnApplyWindowInsetsListener(content, (view, insets) -> {
+            Insets bars = insets.getInsets(WindowInsetsCompat.Type.systemBars());
+            view.setPadding(bars.left, bars.top, bars.right, bars.bottom);
+            return insets;
+        });
+    }
+
+    private void setupServerAddress() {
+        View section = findViewById(R.id.serverSection);
+        EditText serverInput = findViewById(R.id.adminServerAddressInput);
+        if (!currentUser.isPrimaryAdmin()) {
+            section.setVisibility(View.GONE);
+            return;
+        }
+        section.setVisibility(View.VISIBLE);
+        serverInput.setText(sessionManager.getBaseUrl());
+        findViewById(R.id.saveServerButton).setOnClickListener(view -> {
+            String value = serverInput.getText().toString().trim();
+            if (!isValidServerAddress(value)) {
+                serverInput.setError("请输入有效地址，例如 https://example.com/");
+                return;
+            }
+            String normalized = SessionManager.normalizeBaseUrl(value);
+            sessionManager.saveBaseUrl(normalized);
+            serverInput.setText(normalized);
+            Toast.makeText(this, "服务器地址已保存", Toast.LENGTH_SHORT).show();
+        });
+    }
+
+    private boolean isValidServerAddress(String value) {
+        try {
+            java.net.URI uri = java.net.URI.create(value);
+            boolean http = "http".equalsIgnoreCase(uri.getScheme())
+                    || "https".equalsIgnoreCase(uri.getScheme());
+            return http && uri.getHost() != null && !uri.getHost().isEmpty();
+        } catch (IllegalArgumentException error) {
+            return false;
+        }
+    }
+
     private void setupTemplateArea() {
-        templateAreas.add("前处理");
-        templateAreas.add("电泳");
-        templateAreas.add("电泳烘房");
-        templateAreas.add("密封线");
-        templateAreas.add("UBC");
-        templateAreas.add("Antichip");
-        templateAreas.add("中涂烘房出口");
-        templateAreas.add("中涂喷房");
-        templateAreas.add("中涂烘房");
-        templateAreas.add("面漆1线");
-        templateAreas.add("面漆2线");
-        templateAreas.add("面漆烘房1线");
-        templateAreas.add("面漆烘房2线");
+        templateAreas.clear();
+        if (currentUser.isPrimaryAdmin()) {
+            templateAreas.addAll(AreaCatalog.allCheckAreas());
+        } else {
+            templateAreas.addAll(AreaCatalog.checkAreas(currentUser.area));
+            if (templateAreas.isEmpty() && !nullToEmpty(currentUser.checkArea).isEmpty()) {
+                templateAreas.add(currentUser.checkArea);
+            }
+        }
         templateAreaSpinner = findViewById(R.id.templateAreaSpinner);
         templateAreaText = findViewById(R.id.templateAreaText);
         ArrayAdapter<String> adapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, templateAreas);
         adapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         templateAreaSpinner.setAdapter(adapter);
-        if (currentUser.isPrimaryAdmin()) {
-            templateAreaSpinner.setVisibility(View.VISIBLE);
-            templateAreaText.setVisibility(View.GONE);
-        } else {
-            templateAreaSpinner.setVisibility(View.GONE);
-            templateAreaText.setVisibility(View.VISIBLE);
-            templateAreaText.setText("模板检查区域：" + nullToEmpty(currentUser.checkArea));
-            int index = templateAreas.indexOf(currentUser.checkArea);
-            if (index >= 0) {
-                templateAreaSpinner.setSelection(index);
-            }
+        templateAreaSpinner.setVisibility(View.VISIBLE);
+        templateAreaText.setVisibility(View.GONE);
+        int index = templateAreas.indexOf(nullToEmpty(currentUser.checkArea));
+        if (index >= 0) {
+            templateAreaSpinner.setSelection(index);
         }
     }
 
     private String selectedTemplateArea() {
-        if (currentUser.isPrimaryAdmin()) {
-            Object selected = templateAreaSpinner.getSelectedItem();
-            return selected == null ? "" : selected.toString();
-        }
-        return nullToEmpty(currentUser.checkArea);
+        Object selected = templateAreaSpinner.getSelectedItem();
+        return selected == null ? "" : selected.toString();
     }
 
     private void setupDates() {
@@ -233,39 +268,100 @@ public class AdminActivity extends AppCompatActivity {
             emailInput.setError("请先填写并保存我的邮箱");
             return;
         }
-        deletePendingShareFile();
-        Button button = findViewById(R.id.sendEmailButton);
+        final Button button = findViewById(R.id.sendEmailButton);
         button.setEnabled(false);
+        apiClient.getExcelAreas(new ApiClient.Callback<List<String>>() {
+            @Override
+            public void onSuccess(List<String> areas) {
+                List<String> targets = areas == null || areas.isEmpty()
+                        ? fallbackExcelAreas() : areas;
+                downloadAll(targets, email, button);
+            }
+
+            @Override
+            public void onError(String message) {
+                downloadAll(fallbackExcelAreas(), email, button);
+            }
+        });
+    }
+
+    private List<String> fallbackExcelAreas() {
+        if (currentUser.isPrimaryAdmin()) {
+            return AreaCatalog.allCheckAreas();
+        }
+        List<String> allowed = AreaCatalog.checkAreas(currentUser.area);
+        if (!allowed.isEmpty()) {
+            return allowed;
+        }
+        List<String> single = new ArrayList<>();
+        if (!nullToEmpty(currentUser.checkArea).isEmpty()) {
+            single.add(currentUser.checkArea);
+        }
+        return single;
+    }
+
+    private void downloadAll(List<String> areas, String email, Button button) {
+        deletePendingShareFiles();
+        if (areas.isEmpty()) {
+            button.setEnabled(true);
+            showLongError("没有可导出的检查区域", "当前责任区域下没有可用检查区域");
+            return;
+        }
+        downloadAt(areas, 0, email, button);
+    }
+
+    private void downloadAt(List<String> areas, int index, String email, Button button) {
+        if (index >= areas.size()) {
+            button.setEnabled(true);
+            openMailClient(new ArrayList<>(pendingShareFiles), email);
+            return;
+        }
+        String area = areas.get(index);
         java.io.File target = new java.io.File(
-                new java.io.File(getCacheDir(), "email"), "quality-check-" + selectedDate + ".xlsx");
-        apiClient.downloadExcelToFile(selectedDate, target, new ApiClient.Callback<java.io.File>() {
+                new java.io.File(getCacheDir(), "email"), area + "-" + selectedDate + ".xlsx");
+        apiClient.downloadExcelToFile(selectedDate, area, target,
+                new ApiClient.Callback<java.io.File>() {
             @Override
             public void onSuccess(java.io.File file) {
-                button.setEnabled(true);
-                openMailClient(file, email);
+                pendingShareFiles.add(file);
+                downloadAt(areas, index + 1, email, button);
             }
 
             @Override
             public void onError(String message) {
                 button.setEnabled(true);
-                showLongError("邮件发送准备失败", message);
+                deletePendingShareFiles();
+                showLongError("Excel导出失败", area + "：" + message);
             }
         });
     }
 
-    private void openMailClient(java.io.File file, String email) {
+    private void openMailClient(List<java.io.File> files, String email) {
         try {
-            Uri uri = FileProvider.getUriForFile(this,
-                    getPackageName() + ".fileprovider", file);
-            Intent base = new Intent(Intent.ACTION_SEND);
+            if (files.isEmpty()) {
+                throw new IllegalStateException("没有可发送的附件");
+            }
+            ArrayList<Uri> uris = new ArrayList<>();
+            ClipData clipData = null;
+            for (java.io.File file : files) {
+                Uri uri = FileProvider.getUriForFile(this,
+                        getPackageName() + ".fileprovider", file);
+                uris.add(uri);
+                if (clipData == null) {
+                    clipData = ClipData.newRawUri("excel", uri);
+                } else {
+                    clipData.addItem(new ClipData.Item(uri));
+                }
+            }
+            Intent base = new Intent(Intent.ACTION_SEND_MULTIPLE);
             base.setType("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet");
-            base.putExtra(Intent.EXTRA_STREAM, uri);
+            base.putParcelableArrayListExtra(Intent.EXTRA_STREAM, uris);
             base.putExtra(Intent.EXTRA_EMAIL, new String[]{email});
             base.putExtra(Intent.EXTRA_SUBJECT, "质量检查记录 " + selectedDate);
-            base.putExtra(Intent.EXTRA_TEXT, "附件为 " + selectedDate + " 质量检查记录，请查收。");
-            base.setClipData(ClipData.newRawUri("excel", uri));
+            base.putExtra(Intent.EXTRA_TEXT, "附件为 " + selectedDate
+                    + " 质量检查记录（共" + files.size() + "个检查区域），请查收。");
+            base.setClipData(clipData);
             base.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-            pendingShareFile = file;
             shareInFlight = true;
             String mailPackage = defaultMailPackage();
             if (mailPackage != null) {
@@ -279,7 +375,7 @@ public class AdminActivity extends AppCompatActivity {
             }
             startActivity(Intent.createChooser(base, "发送检查记录到邮箱"));
         } catch (RuntimeException error) {
-            deletePendingShareFile();
+            deletePendingShareFiles();
             showLongError("无法打开邮件客户端",
                     "请确认手机已安装并登录邮箱APP。\n" + error.getMessage());
         }
@@ -299,13 +395,14 @@ public class AdminActivity extends AppCompatActivity {
         return null;
     }
 
-    private void deletePendingShareFile() {
-        java.io.File file = pendingShareFile;
-        pendingShareFile = null;
-        if (file != null && file.exists()) {
-            //noinspection ResultOfMethodCallIgnored
-            file.delete();
+    private void deletePendingShareFiles() {
+        for (java.io.File file : pendingShareFiles) {
+            if (file != null && file.exists()) {
+                //noinspection ResultOfMethodCallIgnored
+                file.delete();
+            }
         }
+        pendingShareFiles.clear();
     }
 
     @Override
@@ -313,14 +410,14 @@ public class AdminActivity extends AppCompatActivity {
         super.onResume();
         if (shareInFlight) {
             shareInFlight = false;
-            deletePendingShareFile();
+            deletePendingShareFiles();
         }
     }
 
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        deletePendingShareFile();
+        deletePendingShareFiles();
     }
 
     private void showLongError(String title, String message) {

@@ -62,11 +62,11 @@ public class ExcelService {
 
     public Path generate(LocalDate workDate, String area) {
         validateDate(workDate);
-        List<QualityRecord> records = recordService.findDayEntities(workDate);
+        List<QualityRecord> records = recordService.findDayEntities(workDate, area);
         Path temporary = null;
         try {
             Files.createDirectories(exportDirectory);
-            Path target = exportDirectory.resolve(workDate + ".xlsx");
+            Path target = exportDirectory.resolve(fileName(workDate, area));
             temporary = Files.createTempFile(exportDirectory, workDate + "-", ".xlsx");
             try (InputStream input = new ByteArrayInputStream(templateService.effectiveTemplate(area));
                  Workbook workbook = WorkbookFactory.create(input)) {
@@ -100,6 +100,11 @@ public class ExcelService {
                 }
             }
         }
+    }
+
+    private String fileName(LocalDate workDate, String area) {
+        String target = area == null ? "" : area.trim();
+        return target.isEmpty() ? workDate + ".xlsx" : target + "-" + workDate + ".xlsx";
     }
 
     private void validateDate(LocalDate workDate) {

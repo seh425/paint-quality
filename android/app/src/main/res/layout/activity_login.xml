@@ -28,22 +28,24 @@
             android:gravity="center"
             android:text="检查人登录"
             android:textSize="17sp" />
+        <!-- 服务器地址默认由系统固定，普通角色不可见、不可编辑；仅一级管理员可在管理员入口修改 -->
         <com.google.android.material.textfield.TextInputLayout
             android:id="@+id/serverAddressLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:visibility="gone"
             android:hint="服务器地址（由管理员提供）">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/serverAddressInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:enabled="false"
                 android:inputType="textUri"
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.textfield.TextInputLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
             android:hint="@string/inspector_name">
             <com.google.android.material.textfield.TextInputEditText
                 android:id="@+id/inspectorNameInput"
@@ -53,33 +55,16 @@
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
         <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/areaLayout"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:hint="责任区域（下拉选择）"
-            app:endIconMode="dropdown_menu">
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/areaInput"
+            android:hint="登录密码"
+            app:endIconMode="password_toggle">
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/loginPasswordInput"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:inputType="text"
-                android:maxLines="1" />
-        </com.google.android.material.textfield.TextInputLayout>
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/checkAreaLayout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
-            android:hint="检查区域（下拉选择）"
-            app:endIconMode="dropdown_menu">
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/checkAreaInput"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:clickable="true"
-                android:focusable="false"
-                android:inputType="none"
+                android:inputType="textPassword"
                 android:maxLines="1" />
         </com.google.android.material.textfield.TextInputLayout>
         <ProgressBar

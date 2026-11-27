@@ -20,8 +20,8 @@ import java.time.LocalDateTime;
 
 @Entity
 @Table(name = "quality_records", uniqueConstraints =
-        @UniqueConstraint(name = "uk_quality_record_slot",
-                columnNames = {"work_date", "round_number", "line_number", "vehicle_position"}),
+        @UniqueConstraint(name = "uk_quality_record_slot_v2",
+                columnNames = {"work_date", "check_area", "round_number", "line_number", "vehicle_position"}),
         indexes = @Index(name = "idx_quality_record_work_date", columnList = "work_date"))
 public class QualityRecord {
 
@@ -69,6 +69,9 @@ public class QualityRecord {
 
     @Column(nullable = false, length = 50)
     private String area;
+
+    @Column(name = "check_area", length = 50)
+    private String checkArea;
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
@@ -182,6 +185,14 @@ public class QualityRecord {
 
     public void setArea(String area) {
         this.area = area;
+    }
+
+    public String getCheckArea() {
+        return checkArea;
+    }
+
+    public void setCheckArea(String checkArea) {
+        this.checkArea = checkArea;
     }
 
     public LocalDateTime getCreatedAt() {

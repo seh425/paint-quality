@@ -1,6 +1,7 @@
 package com.example.paintquality;
 
 import com.example.paintquality.auth.AuthTokenRepository;
+import com.example.paintquality.auth.PasswordHasher;
 import com.example.paintquality.excel.AreaTemplateRepository;
 import com.example.paintquality.model.VehicleModelRepository;
 import com.example.paintquality.record.QualityRecordRepository;
@@ -52,6 +53,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 @AutoConfigureMockMvc
 class PaintQualityServerApplicationTests {
 
+    private static final String ADMIN_PASSWORD = "admin123";
+    private static final String USER_PASSWORD = "pass1234";
+
     @TempDir
     static Path temporaryDirectory;
 
@@ -101,6 +105,7 @@ class PaintQualityServerApplicationTests {
         admin.setEnabled(true);
         admin.setEmail(null);
         admin.setCheckArea(null);
+        admin.setPasswordHash(PasswordHasher.hash(ADMIN_PASSWORD));
         userRepository.save(admin);
     }
 
@@ -121,7 +126,8 @@ class PaintQualityServerApplicationTests {
                 .andExpect(status().isUnauthorized());
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("inspectorName", "检查人甲", "area", "A1"))))
+                        .content(json(Map.of("inspectorName", "检查人甲", "area", "A1",
+                                "password", USER_PASSWORD))))
                 .andExpect(status().isForbidden());
 
         approve(admin, registered, "A1", "前处理");
@@ -139,7 +145,8 @@ class PaintQualityServerApplicationTests {
 
         mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("inspectorName", "检查人甲"))))
+                        .content(json(Map.of("inspectorName", "检查人甲",
+                                "password", USER_PASSWORD))))
                 .andExpect(status().isConflict());
 
         mockMvc.perform(post("/api/auth/logout")
@@ -183,6 +190,14 @@ class PaintQualityServerApplicationTests {
         mockMvc.perform(multipart("/api/admin/template").file(template)
                         .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token())))
                 .andExpect(status().isOk());
+
+        mockMvc.perform(multipart("/api/admin/template").file(template).param("area", "UBC")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token())))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(multipart("/api/admin/template").file(template).param("area", "面漆1线")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token())))
+                .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/api/rounds")
                         .header(HttpHeaders.AUTHORIZATION, bearer(secondary.token())))
@@ -245,7 +260,8 @@ class PaintQualityServerApplicationTests {
                 .andExpect(status().isOk());
         mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("inspectorName", "待审人员", "area", "面漆"))))
+                        .content(json(Map.of("inspectorName", "待审人员", "area", "面漆",
+                                "password", USER_PASSWORD))))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -264,6 +280,27 @@ class PaintQualityServerApplicationTests {
                         .header(HttpHeaders.AUTHORIZATION, bearer(admin.token()))
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(Map.of("email", "not-an-email"))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void userCanSelectAreasWithinResponsibility() throws Exception {
+        Session admin = login("admin", "ADMIN");
+        Session user = register("区域检查人");
+        approve(admin, user, "前处理电泳", "前处理");
+
+        mockMvc.perform(patch("/api/auth/me/areas")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("area", "密封", "checkArea", "UBC"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.area").value("密封"))
+                .andExpect(jsonPath("$.checkArea").value("UBC"));
+
+        mockMvc.perform(patch("/api/auth/me/areas")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(user.token()))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(json(Map.of("area", "面漆", "checkArea", "UBC"))))
                 .andExpect(status().isBadRequest());
     }
 
@@ -312,6 +349,7 @@ class PaintQualityServerApplicationTests {
                 .andExpect(jsonPath("$[0].vehiclePosition").value(1));
 
         mockMvc.perform(get("/api/records").param("date", today.toString())
+                        .param("checkArea", "前处理")
                         .header(HttpHeaders.AUTHORIZATION, bearer(other.token())))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.length()").value(5))
@@ -320,12 +358,19 @@ class PaintQualityServerApplicationTests {
         mockMvc.perform(post("/api/records/batches")
                         .header(HttpHeaders.AUTHORIZATION, bearer(other.token()))
                         .contentType(MediaType.APPLICATION_JSON).content(json(batch)))
-                .andExpect(status().isConflict());
+                .andExpect(status().isOk());
 
         mockMvc.perform(post("/api/records/batches")
                         .header(HttpHeaders.AUTHORIZATION, bearer(owner.token()))
                         .contentType(MediaType.APPLICATION_JSON).content(json(batch)))
                 .andExpect(status().isOk());
+
+        Session sameArea = register("检查人丙");
+        approve(admin, sameArea, "A1", "前处理");
+        mockMvc.perform(post("/api/records/batches")
+                        .header(HttpHeaders.AUTHORIZATION, bearer(sameArea.token()))
+                        .contentType(MediaType.APPLICATION_JSON).content(json(batch)))
+                .andExpect(status().isConflict());
 
         ObjectNode fourVehicles = batch.deepCopy();
         ((ArrayNode) fourVehicles.get("vehicles")).remove(4);
@@ -411,7 +456,8 @@ class PaintQualityServerApplicationTests {
     private Session register(String name) throws Exception {
         MvcResult result = mockMvc.perform(post("/api/auth/register")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content(json(Map.of("inspectorName", name))))
+                        .content(json(Map.of("inspectorName", name,
+                                "password", USER_PASSWORD))))
                 .andExpect(status().isOk())
                 .andReturn();
         return session(result);
@@ -436,6 +482,7 @@ class PaintQualityServerApplicationTests {
         if (checkArea != null) {
             body.put("checkArea", checkArea);
         }
+        body.put("password", "admin".equals(name) ? ADMIN_PASSWORD : USER_PASSWORD);
         MvcResult result = mockMvc.perform(post("/api/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content(json(body)))

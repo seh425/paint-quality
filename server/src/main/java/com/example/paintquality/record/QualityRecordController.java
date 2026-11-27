@@ -26,8 +26,12 @@ public class QualityRecordController {
 
     @GetMapping
     public List<QualityRecordResponse> findShared(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date) {
-        return recordService.findShared(date);
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam(required = false) String checkArea,
+            @CurrentUser InspectorUser user) {
+        String target = checkArea == null || checkArea.isBlank()
+                ? user.getCheckArea() : checkArea.trim();
+        return recordService.findShared(date, target);
     }
 
     @PostMapping("/batches")

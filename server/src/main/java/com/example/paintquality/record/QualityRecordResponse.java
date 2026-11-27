@@ -17,6 +17,7 @@ public record QualityRecordResponse(
         String issueNote,
         String inspectorName,
         String area,
+        String checkArea,
         LocalDateTime createdAt) {
 
     public static QualityRecordResponse from(QualityRecord record) {
@@ -24,6 +25,6 @@ public record QualityRecordResponse(
                 record.getLineNumber(), record.getVehiclePosition(), record.getVin(),
                 record.getVehicleNumber(), record.getModelCode(), record.getVehicleModel(),
                 record.getStatus(), record.getIssueNote(), record.getInspectorName(),
-                record.getArea(), record.getCreatedAt());
+                record.getArea(), record.getCheckArea(), record.getCreatedAt());
     }
 }

@@ -2,11 +2,14 @@ package com.example.paintquality.auth;
 
 import com.example.paintquality.common.CurrentUser;
 import com.example.paintquality.user.InspectorUser;
+import com.example.paintquality.user.MeAreasRequest;
 import com.example.paintquality.user.UserResponse;
+import com.example.paintquality.user.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestHeader;
@@ -18,9 +21,11 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+    private final UserService userService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, UserService userService) {
         this.authService = authService;
+        this.userService = userService;
     }
 
     @PostMapping("/register")
@@ -42,5 +47,11 @@ public class AuthController {
     @GetMapping("/me")
     public UserResponse me(@CurrentUser InspectorUser user) {
         return UserResponse.from(user);
+    }
+
+    @PatchMapping("/me/areas")
+    public UserResponse updateAreas(@CurrentUser InspectorUser user,
+                                    @Valid @RequestBody MeAreasRequest request) {
+        return userService.updateOwnAreas(user.getId(), request.area(), request.checkArea());
     }
 }

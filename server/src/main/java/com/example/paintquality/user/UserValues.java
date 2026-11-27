@@ -42,6 +42,19 @@ public final class UserValues {
         return normalized;
     }
 
+    public static String password(String value) {
+        if (value == null || value.isEmpty()) {
+            throw ApiException.badRequest("登录密码不能为空");
+        }
+        if (value.length() < 6) {
+            throw ApiException.badRequest("登录密码至少6位");
+        }
+        if (value.length() > 100) {
+            throw ApiException.badRequest("登录密码不能超过100个字符");
+        }
+        return value;
+    }
+
     public static String email(String value) {
         if (value == null || value.isBlank()) {
             return null;

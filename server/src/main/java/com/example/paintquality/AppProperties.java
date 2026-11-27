@@ -50,6 +50,7 @@ public class AppProperties {
     public static class BootstrapAdmin {
         private String name = "admin";
         private String area = "ADMIN";
+        private String password = "admin123";
 
         public String getName() {
             return name;
@@ -65,6 +66,14 @@ public class AppProperties {
 
         public void setArea(String area) {
             this.area = area;
+        }
+
+        public String getPassword() {
+            return password;
+        }
+
+        public void setPassword(String password) {
+            this.password = password;
         }
     }
 }

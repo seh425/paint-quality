@@ -2,6 +2,7 @@ package com.example.paintquality.user;
 
 import com.example.paintquality.auth.AuthTokenRepository;
 import com.example.paintquality.common.ApiException;
+import com.example.paintquality.excel.AreaCatalog;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -120,6 +121,20 @@ public class UserService {
         InspectorUser user = userRepository.findById(userId)
                 .orElseThrow(() -> ApiException.notFound("用户不存在"));
         user.setEmail(UserValues.email(email));
+        return UserResponse.from(userRepository.save(user));
+    }
+
+    @Transactional
+    public UserResponse updateOwnAreas(Long userId, String area, String checkArea) {
+        String responsibility = AreaCatalog.requireResponsibility(area);
+        String target = UserValues.checkArea(checkArea);
+        if (target == null || !AreaCatalog.isAllowed(responsibility, target)) {
+            throw ApiException.badRequest("检查区域必须属于所选责任区域");
+        }
+        InspectorUser user = userRepository.findById(userId)
+                .orElseThrow(() -> ApiException.notFound("用户不存在"));
+        user.setArea(responsibility);
+        user.setCheckArea(target);
         return UserResponse.from(userRepository.save(user));
     }
 }

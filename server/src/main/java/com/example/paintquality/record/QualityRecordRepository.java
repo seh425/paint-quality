@@ -9,8 +9,14 @@ public interface QualityRecordRepository extends JpaRepository<QualityRecord, Lo
 
     List<QualityRecord> findAllByWorkDateOrderByRoundNumberAscLineNumberAscVehiclePositionAsc(LocalDate workDate);
 
+    List<QualityRecord> findAllByWorkDateAndCheckAreaOrderByRoundNumberAscLineNumberAscVehiclePositionAsc(
+            LocalDate workDate, String checkArea);
+
     List<QualityRecord> findAllByWorkDateAndRoundNumberAndLineNumberOrderByVehiclePositionAsc(
             LocalDate workDate, int roundNumber, int lineNumber);
+
+    List<QualityRecord> findAllByWorkDateAndCheckAreaAndRoundNumberAndLineNumberOrderByVehiclePositionAsc(
+            LocalDate workDate, String checkArea, int roundNumber, int lineNumber);
 
     long deleteByWorkDateBefore(LocalDate cutoff);
 }

@@ -14,5 +14,6 @@ public class InspectionRecord {
     public String issueNote = "";
     public String inspectorName = "";
     public String area = "";
+    public String checkArea = "";
     public String createdAt = "";
 }

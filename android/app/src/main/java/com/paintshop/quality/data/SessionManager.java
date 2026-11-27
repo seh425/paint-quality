@@ -4,7 +4,6 @@ import android.content.Context;
 import android.content.SharedPreferences;
 
 import com.google.gson.Gson;
-import com.paintshop.quality.BuildConfig;
 import com.paintshop.quality.model.User;
 
 public class SessionManager {
@@ -15,8 +14,11 @@ public class SessionManager {
     private static final String LAST_AREA = "last_area";
     private static final String LAST_CHECK_AREA = "last_check_area";
     private static final String LAST_NAME = "last_name";
+    private static final String LAST_PASSWORD = "last_password";
     private static final String LAST_ROLE = "last_role";
     private static final String BASE_CONFIGURED = "base_configured";
+
+    public static final String DEFAULT_BASE_URL = "https://paint-quality-server.onrender.com/";
 
     private final SharedPreferences preferences;
     private final Gson gson = new Gson();
@@ -29,7 +31,7 @@ public class SessionManager {
     public static String normalizeBaseUrl(String value) {
         String normalized = value == null ? "" : value.trim();
         if (normalized.isEmpty()) {
-            normalized = BuildConfig.API_BASE_URL;
+            normalized = DEFAULT_BASE_URL;
         }
         if (!normalized.regionMatches(true, 0, "http://", 0, 7)
                 && !normalized.regionMatches(true, 0, "https://", 0, 8)) {
@@ -55,7 +57,7 @@ public class SessionManager {
     }
 
     public synchronized String getBaseUrl() {
-        return normalizeBaseUrl(preferences.getString(BASE_URL, BuildConfig.API_BASE_URL));
+        return normalizeBaseUrl(preferences.getString(BASE_URL, DEFAULT_BASE_URL));
     }
 
     public synchronized void saveBaseUrl(String baseUrl) {
@@ -75,6 +77,14 @@ public class SessionManager {
 
     public synchronized void saveLastName(String name) {
         preferences.edit().putString(LAST_NAME, name == null ? "" : name).apply();
+    }
+
+    public synchronized String getLastPassword() {
+        return preferences.getString(LAST_PASSWORD, "");
+    }
+
+    public synchronized void saveLastPassword(String password) {
+        preferences.edit().putString(LAST_PASSWORD, password == null ? "" : password).apply();
     }
 
     public synchronized String getLastRole() {

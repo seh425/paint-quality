@@ -38,17 +38,29 @@ public class QualityRecordService {
     }
 
     @Transactional(readOnly = true)
-    public List<QualityRecordResponse> findShared(LocalDate workDate) {
+    public List<QualityRecordResponse> findShared(LocalDate workDate, String checkArea) {
         LocalDate today = LocalDate.now(clock);
         if (workDate.isAfter(today) || workDate.isBefore(today.minusDays(2))) {
             throw ApiException.badRequest("只能查询今天、昨天或前天的共享记录");
         }
-        return findDayEntities(workDate).stream().map(QualityRecordResponse::from).toList();
+        return findDayEntities(workDate, checkArea).stream().map(QualityRecordResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     public List<QualityRecord> findDayEntities(LocalDate workDate) {
-        return recordRepository.findAllByWorkDateOrderByRoundNumberAscLineNumberAscVehiclePositionAsc(workDate);
+        return findDayEntities(workDate, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<QualityRecord> findDayEntities(LocalDate workDate, String checkArea) {
+        String target = checkArea == null ? "" : checkArea.trim();
+        if (target.isEmpty()) {
+            return recordRepository
+                    .findAllByWorkDateOrderByRoundNumberAscLineNumberAscVehiclePositionAsc(workDate);
+        }
+        return recordRepository
+                .findAllByWorkDateAndCheckAreaOrderByRoundNumberAscLineNumberAscVehiclePositionAsc(
+                        workDate, target);
     }
 
     @Transactional
@@ -58,10 +70,9 @@ public class QualityRecordService {
             throw ApiException.badRequest("只能录入今天或昨天的记录");
         }
         validateVehicles(request.vehicles());
+        String checkArea = inspector.getCheckArea() == null ? "" : inspector.getCheckArea().trim();
 
-        Map<Integer, QualityRecord> existing = recordRepository
-                .findAllByWorkDateAndRoundNumberAndLineNumberOrderByVehiclePositionAsc(
-                        request.workDate(), request.roundNumber(), request.lineNumber())
+        Map<Integer, QualityRecord> existing = existingRecords(request, checkArea)
                 .stream().collect(Collectors.toMap(QualityRecord::getVehiclePosition, Function.identity()));
         Map<String, VehicleModel> models = new HashMap<>();
         LocalDateTime now = LocalDateTime.now(clock);
@@ -87,9 +98,19 @@ public class QualityRecordService {
         } catch (DataIntegrityViolationException exception) {
             throw ApiException.conflict("该检查位置已被占用，整批未保存");
         }
-        return recordRepository.findAllByWorkDateAndRoundNumberAndLineNumberOrderByVehiclePositionAsc(
-                        request.workDate(), request.roundNumber(), request.lineNumber())
-                .stream().map(QualityRecordResponse::from).toList();
+        return existingRecords(request, checkArea).stream()
+                .map(QualityRecordResponse::from).toList();
+    }
+
+    private List<QualityRecord> existingRecords(RecordBatchRequest request, String checkArea) {
+        if (checkArea.isEmpty()) {
+            return recordRepository
+                    .findAllByWorkDateAndRoundNumberAndLineNumberOrderByVehiclePositionAsc(
+                            request.workDate(), request.roundNumber(), request.lineNumber());
+        }
+        return recordRepository
+                .findAllByWorkDateAndCheckAreaAndRoundNumberAndLineNumberOrderByVehiclePositionAsc(
+                        request.workDate(), checkArea, request.roundNumber(), request.lineNumber());
     }
 
     private void validateVehicles(List<VehicleInput> inputs) {
@@ -138,5 +159,7 @@ public class QualityRecordService {
         record.setInspector(inspector);
         record.setInspectorName(inspector.getInspectorName());
         record.setArea(inspector.getArea());
+        record.setCheckArea(inspector.getCheckArea() == null || inspector.getCheckArea().isBlank()
+                ? null : inspector.getCheckArea().trim());
     }
 }
