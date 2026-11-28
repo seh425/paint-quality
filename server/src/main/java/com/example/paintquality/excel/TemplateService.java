@@ -148,6 +148,8 @@ public class TemplateService {
             int headerRow = -1;
             int sequenceColumn = -1;
             int timeAreaColumn = -1;
+            boolean hasLine1 = false;
+            boolean hasLine2 = false;
             int headerScanEnd = Math.min(sheet.getLastRowNum(), 20);
             for (int rowIndex = 0; rowIndex <= headerScanEnd && headerRow < 0; rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
@@ -169,6 +171,15 @@ public class TemplateService {
                     headerRow = rowIndex;
                     sequenceColumn = sequence;
                     timeAreaColumn = timeArea;
+                    for (int column = 0; column < row.getLastCellNum(); column++) {
+                        String compact = normalize(text(row, column, formatter)).replace(" ", "");
+                        if (compact.contains("1#")) {
+                            hasLine1 = true;
+                        }
+                        if (compact.contains("2#")) {
+                            hasLine2 = true;
+                        }
+                    }
                 }
             }
             if (headerRow < 0) {
@@ -177,6 +188,17 @@ public class TemplateService {
                 }
                 return List.of();
             }
+            List<Integer> lines = new ArrayList<>();
+            if (hasLine1) {
+                lines.add(1);
+            }
+            if (hasLine2) {
+                lines.add(2);
+            }
+            if (lines.isEmpty()) {
+                lines.add(1);
+            }
+            List<Integer> availableLines = List.copyOf(lines);
             List<RoundInfo> rounds = new ArrayList<>();
             for (int rowIndex = headerRow + 1; rowIndex <= sheet.getLastRowNum(); rowIndex++) {
                 Row row = sheet.getRow(rowIndex);
@@ -186,7 +208,7 @@ public class TemplateService {
                 String sequence = normalize(text(row, sequenceColumn, formatter));
                 String timeArea = normalize(text(row, timeAreaColumn, formatter));
                 if (!sequence.isEmpty() && !timeArea.isEmpty()) {
-                    rounds.add(new RoundInfo(rounds.size() + 1, sequence, timeArea));
+                    rounds.add(new RoundInfo(rounds.size() + 1, sequence, timeArea, availableLines));
                 }
             }
             if (strict && rounds.isEmpty()) {

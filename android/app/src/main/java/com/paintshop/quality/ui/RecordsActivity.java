@@ -24,7 +24,6 @@ import com.paintshop.quality.model.InspectionRecord;
 import com.paintshop.quality.model.RoundInfo;
 import com.paintshop.quality.model.User;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -65,14 +64,38 @@ public class RecordsActivity extends AppCompatActivity {
     }
 
     private void setupDateSpinner() {
-        LocalDate today = LocalDate.now();
-        for (int i = 0; i < 3; i++) {
-            dates.add(today.minusDays(i).toString());
-        }
-        ArrayAdapter<String> dateAdapter = new ArrayAdapter<>(this,
+        final ArrayAdapter<String> dateAdapter = new ArrayAdapter<>(this,
                 android.R.layout.simple_spinner_item, dates);
         dateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         dateSpinner.setAdapter(dateAdapter);
+        apiClient().getRecordDates(new ApiClient.Callback<List<String>>() {
+            @Override
+            public void onSuccess(List<String> recordDates) {
+                binding = true;
+                dates.clear();
+                if (recordDates != null) {
+                    dates.addAll(recordDates);
+                }
+                dateAdapter.notifyDataSetChanged();
+                if (!dates.isEmpty()) {
+                    dateSpinner.setSelection(0, false);
+                }
+                binding = false;
+                if (dates.isEmpty()) {
+                    adapter.setRecords(new ArrayList<>());
+                    emptyText.setText("最近7日内暂无检查记录");
+                    emptyText.setVisibility(View.VISIBLE);
+                } else {
+                    loadRecords();
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                Toast.makeText(RecordsActivity.this, "可用日期获取失败：" + message,
+                        Toast.LENGTH_LONG).show();
+            }
+        });
     }
 
     private void setupAreaSpinners() {
@@ -267,18 +290,20 @@ public class RecordsActivity extends AppCompatActivity {
         public void onBindViewHolder(@NonNull Holder holder, int position) {
             InspectionRecord record = records.get(position);
             String time = roundTimes.get(record.roundNumber);
+            String statusText = record.statusText == null || record.statusText.trim().isEmpty()
+                    ? value(record.status) : record.statusText.trim();
             StringBuilder header = new StringBuilder("第").append(record.roundNumber).append("轮");
             if (time != null && !time.isEmpty()) {
                 header.append("  ").append(time.replace("/", " ").trim());
             }
             header.append("  |  ").append(record.lineNumber).append("#线 车位")
                     .append(record.vehiclePosition)
-                    .append("  |  ").append(value(record.status));
+                    .append("  |  ").append(statusText);
             holder.header.setText(header.toString());
             holder.vehicle.setText("车号：" + value(record.vehicleNumber)
                     + "    车型：" + value(record.vehicleModel));
             holder.inspector.setText("检查人：" + value(record.inspectorName));
-            boolean hasIssue = "NOK".equals(record.status);
+            boolean hasIssue = statusText.toUpperCase(java.util.Locale.ROOT).contains("NOK");
             holder.issue.setVisibility(hasIssue ? View.VISIBLE : View.GONE);
             holder.issue.setText("NOK备注：" + value(record.issueNote));
         }

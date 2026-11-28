@@ -75,7 +75,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="Excel日期（近3天）"
+            android:text="Excel日期（最近7个有记录日期）"
             android:textStyle="bold" />
         <Spinner
             android:id="@+id/excelDateSpinner"
@@ -131,7 +131,7 @@
             android:enabled="false"
             android:text="上传xlsx模板" />
         <LinearLayout
-            android:id="@+id/primarySection"
+            android:id="@+id/usersSection"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:orientation="vertical"
@@ -140,14 +140,14 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
-                android:text="人员与车型管理"
+                android:text="人员管理"
                 android:textColor="@color/navy"
                 android:textSize="20sp"
                 android:textStyle="bold" />
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
+                android:layout_marginTop="12dp"
                 android:text="注册人员管理"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -156,11 +156,25 @@
                 android:layout_width="match_parent"
                 android:layout_height="360dp"
                 android:nestedScrollingEnabled="true" />
+        </LinearLayout>
+        <LinearLayout
+            android:id="@+id/modelsSection"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="20dp"
-                android:text="维护车型代码及名称"
+                android:layout_marginTop="22dp"
+                android:text="车型代码转化"
+                android:textColor="@color/navy"
+                android:textSize="20sp"
+                android:textStyle="bold" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:text="1. PVI车型代码转化"
                 android:textSize="18sp"
                 android:textStyle="bold" />
             <com.google.android.material.textfield.TextInputLayout
@@ -193,7 +207,51 @@
             <androidx.recyclerview.widget.RecyclerView
                 android:id="@+id/modelsList"
                 android:layout_width="match_parent"
-                android:layout_height="360dp"
+                android:layout_height="260dp"
+                android:nestedScrollingEnabled="true" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:text="2. HMI车型代码转化"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="HMI屏幕车型值转换为PVI车型代码，例如 E2UN→E2UB、98→E2UB" />
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:hint="HMI车型值（如98、E2UN）">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/newHmiValueInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapCharacters"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <com.google.android.material.textfield.TextInputLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:hint="目标PVI车型代码（如E2UB）">
+                <com.google.android.material.textfield.TextInputEditText
+                    android:id="@+id/newHmiPviCodeInput"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:inputType="textCapCharacters"
+                    android:maxLines="1" />
+            </com.google.android.material.textfield.TextInputLayout>
+            <Button
+                android:id="@+id/addHmiMappingButton"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="添加HMI车型转化" />
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/hmiMappingsList"
+                android:layout_width="match_parent"
+                android:layout_height="260dp"
                 android:nestedScrollingEnabled="true" />
         </LinearLayout>
         <Button

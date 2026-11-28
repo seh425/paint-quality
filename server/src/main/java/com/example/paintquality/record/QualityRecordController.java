@@ -34,6 +34,11 @@ public class QualityRecordController {
         return recordService.findShared(date, target);
     }
 
+    @GetMapping("/dates")
+    public List<LocalDate> retainedDates() {
+        return recordService.retainedDates();
+    }
+
     @PostMapping("/batches")
     public List<QualityRecordResponse> saveBatch(@Valid @RequestBody RecordBatchRequest request,
                                                   @CurrentUser InspectorUser inspector) {

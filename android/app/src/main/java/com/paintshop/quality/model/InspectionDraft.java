@@ -8,6 +8,7 @@ public class InspectionDraft {
     public int roundNumber;
     public int lineNumber = 1;
     public int currentIndex;
+    public boolean doubleCheck;
     public List<DraftVehicle> vehicles = new ArrayList<>();
 
     public static InspectionDraft empty(String workDate, int roundNumber, int lineNumber) {

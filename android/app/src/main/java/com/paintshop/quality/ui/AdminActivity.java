@@ -37,10 +37,10 @@ import com.paintshop.quality.R;
 import com.paintshop.quality.data.ApiClient;
 import com.paintshop.quality.data.AreaCatalog;
 import com.paintshop.quality.data.SessionManager;
+import com.paintshop.quality.model.HmiModelMapping;
 import com.paintshop.quality.model.User;
 import com.paintshop.quality.model.VehicleModel;
 
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Locale;
@@ -67,6 +67,9 @@ public class AdminActivity extends AppCompatActivity {
     private String selectedTemplateName = "template.xlsx";
     private UserAdapter userAdapter;
     private ModelAdapter modelAdapter;
+    private HmiMappingAdapter hmiMappingAdapter;
+    private EditText newHmiValueInput;
+    private EditText newHmiPviCodeInput;
     private ActivityResultLauncher<String[]> templateLauncher;
     private final List<java.io.File> pendingShareFiles = new ArrayList<>();
     private boolean shareInFlight;
@@ -94,7 +97,12 @@ public class AdminActivity extends AppCompatActivity {
         newModelNameInput = findViewById(R.id.newModelNameInput);
         selectedTemplateText = findViewById(R.id.selectedTemplateText);
         uploadTemplateButton = findViewById(R.id.uploadTemplateButton);
-        findViewById(R.id.primarySection).setVisibility(View.VISIBLE);
+        newHmiValueInput = findViewById(R.id.newHmiValueInput);
+        newHmiPviCodeInput = findViewById(R.id.newHmiPviCodeInput);
+        findViewById(R.id.modelsSection).setVisibility(View.VISIBLE);
+        if (currentUser.isPrimaryAdmin()) {
+            findViewById(R.id.usersSection).setVisibility(View.VISIBLE);
+        }
         setupDates();
         setupExcelArea();
         setupLists();
@@ -102,6 +110,7 @@ public class AdminActivity extends AppCompatActivity {
         loadExcelDates();
         loadUsers();
         loadModels();
+        loadHmiMappings();
     }
 
     private void applyWindowInsets() {
@@ -176,11 +185,7 @@ public class AdminActivity extends AppCompatActivity {
     }
 
     private void setupDates() {
-        LocalDate today = LocalDate.now();
-        for (int i = 0; i < 3; i++) {
-            excelDates.add(today.minusDays(i).toString());
-        }
-        selectedDate = excelDates.get(0);
+        selectedDate = null;
         excelDateSpinner = findViewById(R.id.excelDateSpinner);
         dateAdapter = new ArrayAdapter<>(this, android.R.layout.simple_spinner_item, excelDates);
         dateAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
@@ -188,7 +193,7 @@ public class AdminActivity extends AppCompatActivity {
         excelDateSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override
             public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
-                selectedDate = excelDates.get(position);
+                selectedDate = position < excelDates.size() ? excelDates.get(position) : null;
             }
 
             @Override
@@ -254,6 +259,20 @@ public class AdminActivity extends AppCompatActivity {
             }
         });
         modelsList.setAdapter(modelAdapter);
+        RecyclerView hmiList = findViewById(R.id.hmiMappingsList);
+        hmiList.setLayoutManager(new LinearLayoutManager(this));
+        hmiMappingAdapter = new HmiMappingAdapter(new HmiMappingAdapter.Listener() {
+            @Override
+            public void onEdit(HmiModelMapping mapping) {
+                showHmiMappingEditor(mapping);
+            }
+
+            @Override
+            public void onDelete(HmiModelMapping mapping) {
+                confirmDeleteHmiMapping(mapping);
+            }
+        });
+        hmiList.setAdapter(hmiMappingAdapter);
     }
 
     private void setupActions() {
@@ -261,6 +280,7 @@ public class AdminActivity extends AppCompatActivity {
         findViewById(R.id.saveEmailButton).setOnClickListener(view -> saveEmail());
         findViewById(R.id.sendEmailButton).setOnClickListener(view -> sendEmail());
         findViewById(R.id.addModelButton).setOnClickListener(view -> addModel());
+        findViewById(R.id.addHmiMappingButton).setOnClickListener(view -> addHmiMapping());
         templateLauncher = registerForActivityResult(new ActivityResultContracts.OpenDocument(), uri -> {
             if (uri == null) {
                 return;
@@ -302,7 +322,8 @@ public class AdminActivity extends AppCompatActivity {
     }
 
     private void sendEmail() {
-        if (selectedDate == null) {
+        if (selectedDate == null || selectedDate.isEmpty()) {
+            Toast.makeText(this, "暂无可导出的日期（最近7个有检查记录的日期）", Toast.LENGTH_LONG).show();
             return;
         }
         String email = nullToEmpty(currentUser.email).trim();
@@ -518,20 +539,18 @@ public class AdminActivity extends AppCompatActivity {
         apiClient.getExcelDates(new ApiClient.Callback<List<String>>() {
             @Override
             public void onSuccess(List<String> serverDates) {
-                if (serverDates == null || serverDates.isEmpty()) {
-                    return;
+                if (serverDates == null) {
+                    serverDates = new ArrayList<>();
                 }
-                List<String> available = new ArrayList<>();
-                for (String localDate : new ArrayList<>(excelDates)) {
-                    if (serverDates.contains(localDate)) {
-                        available.add(localDate);
-                    }
-                }
-                if (!available.isEmpty()) {
-                    excelDates.clear();
-                    excelDates.addAll(available);
-                    dateAdapter.notifyDataSetChanged();
-                    selectedDate = excelDates.get(0);
+                excelDates.clear();
+                excelDates.addAll(serverDates);
+                dateAdapter.notifyDataSetChanged();
+                selectedDate = excelDates.isEmpty() ? null : excelDates.get(0);
+                if (excelDates.isEmpty()) {
+                    Toast.makeText(AdminActivity.this,
+                            "暂无可导出的日期（最近7个有检查记录的日期）",
+                            Toast.LENGTH_LONG).show();
+                } else {
                     excelDateSpinner.setSelection(0);
                 }
             }
@@ -539,7 +558,7 @@ public class AdminActivity extends AppCompatActivity {
             @Override
             public void onError(String message) {
                 Toast.makeText(AdminActivity.this,
-                        "可用Excel日期获取失败，仍可选择近3天：" + message,
+                        "可用Excel日期获取失败：" + message,
                         Toast.LENGTH_LONG).show();
             }
         });
@@ -814,6 +833,116 @@ public class AdminActivity extends AppCompatActivity {
                 .show();
     }
 
+    private void loadHmiMappings() {
+        apiClient.listHmiMappings(new ApiClient.Callback<List<HmiModelMapping>>() {
+            @Override
+            public void onSuccess(List<HmiModelMapping> mappings) {
+                hmiMappingAdapter.setMappings(mappings);
+            }
+
+            @Override
+            public void onError(String message) {
+                Toast.makeText(AdminActivity.this, "HMI车型转化加载失败：" + message,
+                        Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void addHmiMapping() {
+        String hmiValue = newHmiValueInput.getText().toString().trim().toUpperCase(Locale.ROOT);
+        String pviCode = newHmiPviCodeInput.getText().toString().trim().toUpperCase(Locale.ROOT);
+        if (hmiValue.isEmpty() || pviCode.isEmpty()) {
+            Toast.makeText(this, "HMI车型值和目标PVI车型代码均不能为空", Toast.LENGTH_SHORT).show();
+            return;
+        }
+        Button button = findViewById(R.id.addHmiMappingButton);
+        button.setEnabled(false);
+        apiClient.createHmiMapping(hmiValue, pviCode, new ApiClient.Callback<HmiModelMapping>() {
+            @Override
+            public void onSuccess(HmiModelMapping mapping) {
+                button.setEnabled(true);
+                newHmiValueInput.setText("");
+                newHmiPviCodeInput.setText("");
+                Toast.makeText(AdminActivity.this, "HMI车型转化已添加", Toast.LENGTH_SHORT).show();
+                loadHmiMappings();
+            }
+
+            @Override
+            public void onError(String message) {
+                button.setEnabled(true);
+                Toast.makeText(AdminActivity.this, "添加失败：" + message, Toast.LENGTH_LONG).show();
+            }
+        });
+    }
+
+    private void showHmiMappingEditor(HmiModelMapping mapping) {
+        View view = LayoutInflater.from(this).inflate(R.layout.dialog_hmi_mapping, null);
+        EditText hmiInput = view.findViewById(R.id.editHmiValueInput);
+        EditText pviInput = view.findViewById(R.id.editHmiPviCodeInput);
+        hmiInput.setText(nullToEmpty(mapping.hmiValue));
+        pviInput.setText(nullToEmpty(mapping.pviCode));
+        AlertDialog dialog = new AlertDialog.Builder(this)
+                .setTitle("编辑HMI车型转化")
+                .setView(view)
+                .setNegativeButton("取消", null)
+                .setPositiveButton("保存", null)
+                .create();
+        dialog.setOnShowListener(ignored -> dialog.getButton(AlertDialog.BUTTON_POSITIVE)
+                .setOnClickListener(button -> {
+                    String hmiValue = hmiInput.getText().toString().trim().toUpperCase(Locale.ROOT);
+                    String pviCode = pviInput.getText().toString().trim().toUpperCase(Locale.ROOT);
+                    if (hmiValue.isEmpty() || pviCode.isEmpty()) {
+                        Toast.makeText(this, "HMI车型值和目标PVI车型代码均不能为空",
+                                Toast.LENGTH_SHORT).show();
+                        return;
+                    }
+                    Button saveButton = dialog.getButton(AlertDialog.BUTTON_POSITIVE);
+                    saveButton.setEnabled(false);
+                    apiClient.updateHmiMapping(mapping.id, hmiValue, pviCode,
+                            new ApiClient.Callback<HmiModelMapping>() {
+                        @Override
+                        public void onSuccess(HmiModelMapping response) {
+                            dialog.dismiss();
+                            Toast.makeText(AdminActivity.this, "HMI车型转化已保存",
+                                    Toast.LENGTH_SHORT).show();
+                            loadHmiMappings();
+                        }
+
+                        @Override
+                        public void onError(String message) {
+                            saveButton.setEnabled(true);
+                            Toast.makeText(AdminActivity.this, "保存失败：" + message,
+                                    Toast.LENGTH_LONG).show();
+                        }
+                    });
+                }));
+        dialog.show();
+    }
+
+    private void confirmDeleteHmiMapping(HmiModelMapping mapping) {
+        new AlertDialog.Builder(this)
+                .setTitle("删除HMI车型转化")
+                .setMessage("确定删除“" + nullToEmpty(mapping.hmiValue) + " → "
+                        + nullToEmpty(mapping.pviCode) + "”？")
+                .setNegativeButton("取消", null)
+                .setPositiveButton("删除", (dialog, which) -> apiClient.deleteHmiMapping(mapping.id,
+                        new ApiClient.Callback<Void>() {
+                            @Override
+                            public void onSuccess(Void ignored) {
+                                Toast.makeText(AdminActivity.this, "HMI车型转化已删除",
+                                        Toast.LENGTH_SHORT).show();
+                                loadHmiMappings();
+                            }
+
+                            @Override
+                            public void onError(String message) {
+                                Toast.makeText(AdminActivity.this, "删除失败：" + message,
+                                        Toast.LENGTH_LONG).show();
+                            }
+                        }))
+                .show();
+    }
+
     private static String nullToEmpty(String value) {
         return value == null ? "" : value;
     }
@@ -911,6 +1040,62 @@ public class AdminActivity extends AppCompatActivity {
         @Override
         public int getItemCount() {
             return models.size();
+        }
+
+        static class Holder extends RecyclerView.ViewHolder {
+            final TextView text;
+            final Button edit;
+            final Button delete;
+
+            Holder(View itemView) {
+                super(itemView);
+                text = itemView.findViewById(R.id.modelItemText);
+                edit = itemView.findViewById(R.id.editModelButton);
+                delete = itemView.findViewById(R.id.deleteModelButton);
+            }
+        }
+    }
+
+    private static class HmiMappingAdapter extends RecyclerView.Adapter<HmiMappingAdapter.Holder> {
+        interface Listener {
+            void onEdit(HmiModelMapping mapping);
+            void onDelete(HmiModelMapping mapping);
+        }
+
+        private final Listener listener;
+        private final List<HmiModelMapping> mappings = new ArrayList<>();
+
+        HmiMappingAdapter(Listener listener) {
+            this.listener = listener;
+        }
+
+        void setMappings(List<HmiModelMapping> values) {
+            mappings.clear();
+            if (values != null) mappings.addAll(values);
+            notifyDataSetChanged();
+        }
+
+        @NonNull
+        @Override
+        public Holder onCreateViewHolder(@NonNull ViewGroup parent, int viewType) {
+            return new Holder(LayoutInflater.from(parent.getContext())
+                    .inflate(R.layout.item_model, parent, false));
+        }
+
+        @Override
+        public void onBindViewHolder(@NonNull Holder holder, int position) {
+            HmiModelMapping mapping = mappings.get(position);
+            String name = nullToEmpty(mapping.pviModelName);
+            holder.text.setText("HMI " + nullToEmpty(mapping.hmiValue)
+                    + " → PVI " + nullToEmpty(mapping.pviCode)
+                    + (name.isEmpty() ? "" : " / " + name));
+            holder.edit.setOnClickListener(view -> listener.onEdit(mapping));
+            holder.delete.setOnClickListener(view -> listener.onDelete(mapping));
+        }
+
+        @Override
+        public int getItemCount() {
+            return mappings.size();
         }
 
         static class Holder extends RecyclerView.ViewHolder {

@@ -10,6 +10,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.reflect.TypeToken;
 import com.paintshop.quality.model.DraftVehicle;
+import com.paintshop.quality.model.HmiModelMapping;
 import com.paintshop.quality.model.InspectionRecord;
 import com.paintshop.quality.model.RoundInfo;
 import com.paintshop.quality.model.User;
@@ -231,13 +232,49 @@ public class ApiClient {
 
     public void submitBatch(String date, int round, int line, List<DraftVehicle> vehicles,
                             Callback<List<InspectionRecord>> callback) {
+        submitBatch(date, round, line, vehicles, false, callback);
+    }
+
+    public void submitBatch(String date, int round, int line, List<DraftVehicle> vehicles,
+                            boolean doubleCheck, Callback<List<InspectionRecord>> callback) {
         Map<String, Object> body = new LinkedHashMap<>();
         body.put("workDate", date);
         body.put("roundNumber", round);
         body.put("lineNumber", line);
+        body.put("doubleCheck", doubleCheck);
         body.put("vehicles", vehicles);
         request("POST", "/api/records/batches", body,
                 new TypeToken<List<InspectionRecord>>() { }.getType(), callback);
+    }
+
+    public void getRecordDates(Callback<List<String>> callback) {
+        request("GET", "/api/records/dates", null,
+                new TypeToken<List<String>>() { }.getType(), callback);
+    }
+
+    public void listHmiMappings(Callback<List<HmiModelMapping>> callback) {
+        request("GET", "/api/hmi-models", null,
+                new TypeToken<List<HmiModelMapping>>() { }.getType(), callback);
+    }
+
+    public void createHmiMapping(String hmiValue, String pviCode,
+                                 Callback<HmiModelMapping> callback) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("hmiValue", hmiValue);
+        body.put("pviCode", pviCode);
+        request("POST", "/api/hmi-models", body, HmiModelMapping.class, callback);
+    }
+
+    public void updateHmiMapping(long id, String hmiValue, String pviCode,
+                                 Callback<HmiModelMapping> callback) {
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("hmiValue", hmiValue);
+        body.put("pviCode", pviCode);
+        request("PUT", "/api/hmi-models/" + id, body, HmiModelMapping.class, callback);
+    }
+
+    public void deleteHmiMapping(long id, Callback<Void> callback) {
+        request("DELETE", "/api/hmi-models/" + id, null, Void.class, callback);
     }
 
     public void getExcelDates(Callback<List<String>> callback) {

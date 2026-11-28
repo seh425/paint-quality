@@ -18,6 +18,9 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.format.DateTimeParseException;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 @Service
 public class CleanupService {
@@ -41,12 +44,13 @@ public class CleanupService {
     @Scheduled(cron = "${app.cleanup-cron:0 0 1 * * *}", zone = "${app.zone-id:Asia/Shanghai}")
     @Transactional
     public void cleanOldData() {
-        LocalDate cutoff = LocalDate.now(clock).minusDays(2);
-        long deletedRecords = recordRepository.deleteByWorkDateBefore(cutoff);
+        List<LocalDate> recordedDates = recordRepository.findDistinctWorkDatesDesc();
+        LocalDate cutoff = recordedDates.size() > 7 ? recordedDates.get(6) : null;
+        long deletedRecords = cutoff == null ? 0 : recordRepository.deleteByWorkDateBefore(cutoff);
         long deletedTokens = tokenRepository.deleteByExpiresAtBefore(Instant.now(clock));
-        int deletedFiles = deleteOldExports(cutoff);
-        log.info("Daily cleanup removed {} records, {} expired tokens and {} exports",
-                deletedRecords, deletedTokens, deletedFiles);
+        int deletedFiles = cutoff == null ? 0 : deleteOldExports(cutoff);
+        log.info("Daily cleanup kept {} recorded dates, removed {} records, {} expired tokens and {} exports",
+                Math.min(recordedDates.size(), 7), deletedRecords, deletedTokens, deletedFiles);
     }
 
     private int deleteOldExports(LocalDate cutoff) {
@@ -57,19 +61,27 @@ public class CleanupService {
         try (DirectoryStream<Path> files = Files.newDirectoryStream(exportDirectory, "*.xlsx")) {
             for (Path file : files) {
                 String filename = file.getFileName().toString();
-                try {
-                    LocalDate date = LocalDate.parse(filename.substring(0, filename.length() - 5));
-                    if (date.isBefore(cutoff)) {
-                        Files.deleteIfExists(file);
-                        deleted++;
-                    }
-                } catch (DateTimeParseException ignored) {
-                    // Only files named yyyy-MM-dd.xlsx are managed exports.
+                LocalDate date = extractDate(filename);
+                if (date != null && date.isBefore(cutoff)) {
+                    Files.deleteIfExists(file);
+                    deleted++;
                 }
             }
         } catch (IOException exception) {
             log.warn("Failed to clean old Excel exports", exception);
         }
         return deleted;
+    }
+
+    private LocalDate extractDate(String filename) {
+        Matcher matcher = Pattern.compile("(\\d{4}-\\d{2}-\\d{2})").matcher(filename);
+        if (!matcher.find()) {
+            return null;
+        }
+        try {
+            return LocalDate.parse(matcher.group(1));
+        } catch (DateTimeParseException ignored) {
+            return null;
+        }
     }
 }

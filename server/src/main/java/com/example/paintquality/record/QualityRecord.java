@@ -44,20 +44,23 @@ public class QualityRecord {
     @Column(nullable = false, length = 64)
     private String vin;
 
-    @Column(name = "vehicle_number", nullable = false, length = 6)
+    @Column(name = "vehicle_number", nullable = false, length = 64)
     private String vehicleNumber;
 
     @Column(name = "model_code", nullable = false, length = 32)
     private String modelCode;
 
-    @Column(name = "vehicle_model", nullable = false, length = 100)
+    @Column(name = "vehicle_model", nullable = false, length = 255)
     private String vehicleModel;
 
     @Enumerated(EnumType.STRING)
-    @Column(nullable = false, length = 3)
+    @Column(nullable = false, length = 16)
     private InspectionStatus status;
 
-    @Column(name = "issue_note", length = 1000)
+    @Column(name = "status_text", length = 64)
+    private String statusText;
+
+    @Column(name = "issue_note", length = 2000)
     private String issueNote;
 
     @ManyToOne(fetch = FetchType.LAZY, optional = false)
@@ -153,6 +156,14 @@ public class QualityRecord {
 
     public void setStatus(InspectionStatus status) {
         this.status = status;
+    }
+
+    public String getStatusText() {
+        return statusText;
+    }
+
+    public void setStatusText(String statusText) {
+        this.statusText = statusText;
     }
 
     public String getIssueNote() {

@@ -39,11 +39,16 @@ public class QualityRecordService {
 
     @Transactional(readOnly = true)
     public List<QualityRecordResponse> findShared(LocalDate workDate, String checkArea) {
-        LocalDate today = LocalDate.now(clock);
-        if (workDate.isAfter(today) || workDate.isBefore(today.minusDays(2))) {
-            throw ApiException.badRequest("只能查询今天、昨天或前天的共享记录");
+        List<LocalDate> available = retainedDates();
+        if (!available.contains(workDate)) {
+            throw ApiException.badRequest("只能查询最近7个有检查记录的日期");
         }
         return findDayEntities(workDate, checkArea).stream().map(QualityRecordResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public List<LocalDate> retainedDates() {
+        return recordRepository.findDistinctWorkDatesDesc().stream().limit(7).toList();
     }
 
     @Transactional(readOnly = true)
@@ -90,8 +95,12 @@ public class QualityRecordService {
                     record.setLineNumber(request.lineNumber());
                     record.setVehiclePosition(input.vehiclePosition());
                     record.setCreatedAt(now);
+                    apply(record, input, inspector, models);
+                } else if (request.doubleCheck()) {
+                    appendDoubleCheck(record, input, models);
+                } else {
+                    apply(record, input, inspector, models);
                 }
-                apply(record, input, inspector, models);
                 recordRepository.save(record);
             }
             recordRepository.flush();
@@ -155,11 +164,48 @@ public class QualityRecordService {
         record.setModelCode(model.getCode());
         record.setVehicleModel(input.vehicleModel().trim());
         record.setStatus(input.status());
+        record.setStatusText(input.status().name());
         record.setIssueNote(input.status() == InspectionStatus.NOK ? input.issueNote().trim() : null);
         record.setInspector(inspector);
         record.setInspectorName(inspector.getInspectorName());
         record.setArea(inspector.getArea());
         record.setCheckArea(inspector.getCheckArea() == null || inspector.getCheckArea().isBlank()
                 ? null : inspector.getCheckArea().trim());
+    }
+
+    private void appendDoubleCheck(QualityRecord record, VehicleInput input,
+                                   Map<String, VehicleModel> models) {
+        String modelCode = input.modelCode().trim().toUpperCase(Locale.ROOT);
+        models.computeIfAbsent(modelCode, code -> modelRepository
+                .findByCodeAndActiveTrue(code)
+                .orElseThrow(() -> ApiException.badRequest("车型代码不存在或已停用: " + code)));
+
+        record.setVehicleNumber(appendValue(record.getVehicleNumber(),
+                input.vehicleNumber().trim().toUpperCase(Locale.ROOT)));
+        record.setVehicleModel(appendValue(record.getVehicleModel(), input.vehicleModel().trim()));
+        String firstStatus = record.getStatusText() == null || record.getStatusText().isBlank()
+                ? (record.getStatus() == null ? "" : record.getStatus().name())
+                : record.getStatusText();
+        record.setStatusText(appendValue(firstStatus, input.status().name()));
+        if (input.status() == InspectionStatus.NOK) {
+            record.setIssueNote(appendValue(record.getIssueNote(), input.issueNote().trim()));
+        }
+    }
+
+    private String appendValue(String existing, String addition) {
+        String left = existing == null ? "" : existing.trim();
+        String right = addition == null ? "" : addition.trim();
+        if (right.isEmpty()) {
+            return left;
+        }
+        if (left.isEmpty()) {
+            return right;
+        }
+        for (String part : left.split("、")) {
+            if (part.trim().equalsIgnoreCase(right)) {
+                return left;
+            }
+        }
+        return left + "、" + right;
     }
 }

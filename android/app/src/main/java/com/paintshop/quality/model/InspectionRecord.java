@@ -11,6 +11,7 @@ public class InspectionRecord {
     public String modelCode = "";
     public String vehicleModel = "";
     public String status = "NA";
+    public String statusText = "";
     public String issueNote = "";
     public String inspectorName = "";
     public String area = "";

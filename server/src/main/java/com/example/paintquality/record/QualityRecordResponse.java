@@ -14,6 +14,7 @@ public record QualityRecordResponse(
         String modelCode,
         String vehicleModel,
         InspectionStatus status,
+        String statusText,
         String issueNote,
         String inspectorName,
         String area,
@@ -24,7 +25,7 @@ public record QualityRecordResponse(
         return new QualityRecordResponse(record.getId(), record.getWorkDate(), record.getRoundNumber(),
                 record.getLineNumber(), record.getVehiclePosition(), record.getVin(),
                 record.getVehicleNumber(), record.getModelCode(), record.getVehicleModel(),
-                record.getStatus(), record.getIssueNote(), record.getInspectorName(),
+                record.getStatus(), record.getStatusText(), record.getIssueNote(), record.getInspectorName(),
                 record.getArea(), record.getCheckArea(), record.getCreatedAt());
     }
 }

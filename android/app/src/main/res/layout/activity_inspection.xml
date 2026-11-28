@@ -19,15 +19,30 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="4dp" />
-    <RadioGroup
-        android:id="@+id/lineGroup"
+    <LinearLayout
+        android:id="@+id/lineRow"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
+        android:gravity="center_vertical"
         android:orientation="horizontal">
-        <RadioButton android:id="@+id/line1Button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1#线" />
-        <RadioButton android:id="@+id/line2Button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="24dp" android:text="2#线" />
-    </RadioGroup>
+        <RadioGroup
+            android:id="@+id/lineGroup"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+            <RadioButton android:id="@+id/line1Button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:text="1#线" />
+            <RadioButton android:id="@+id/line2Button" android:layout_width="wrap_content" android:layout_height="wrap_content" android:layout_marginLeft="16dp" android:text="2#线" />
+        </RadioGroup>
+        <Button
+            android:id="@+id/doubleCheckButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginLeft="8dp"
+            android:layout_weight="1"
+            android:text="双倍检查：关" />
+    </LinearLayout>
     <TextView
         android:id="@+id/draftStatusText"
         android:layout_width="match_parent"
@@ -58,13 +73,19 @@
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="@string/scan" />
+                    android:text="条码单张识别" />
                 <Button
                     android:id="@+id/batchScanButton"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
                     android:layout_weight="1"
-                    android:text="相册批量识别" />
+                    android:text="条码批量识别" />
+                <Button
+                    android:id="@+id/hmiScanButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="HMI识别" />
             </LinearLayout>
             <Button
                 android:id="@+id/refreshModelsButton"

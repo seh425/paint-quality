@@ -103,7 +103,7 @@ public class LoginActivity extends AppCompatActivity {
                     return;
                 }
                 sessionManager.saveAuth(response.token, response.user);
-                openAreaSelection();
+                openRounds();
             }
 
             @Override
@@ -128,12 +128,6 @@ public class LoginActivity extends AppCompatActivity {
         modeButton.setEnabled(!value);
         inspectorNameInput.setEnabled(!value);
         passwordInput.setEnabled(!value);
-    }
-
-    private void openAreaSelection() {
-        Intent intent = new Intent(this, AreaSelectionActivity.class);
-        startActivity(intent);
-        finish();
     }
 
     private void openRounds() {

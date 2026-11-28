@@ -8,6 +8,7 @@ import android.view.View;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.EditText;
+import android.widget.LinearLayout;
 import android.widget.RadioButton;
 import android.widget.RadioGroup;
 import android.widget.TextView;
@@ -27,12 +28,14 @@ import com.paintshop.quality.data.ApiClient;
 import com.paintshop.quality.data.DraftStore;
 import com.paintshop.quality.data.SessionManager;
 import com.paintshop.quality.model.DraftVehicle;
+import com.paintshop.quality.model.HmiModelMapping;
 import com.paintshop.quality.model.InspectionDraft;
 import com.paintshop.quality.model.InspectionRecord;
 import com.paintshop.quality.model.VehicleModel;
 
 import java.time.LocalDate;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 
@@ -40,6 +43,7 @@ public class InspectionActivity extends AppCompatActivity {
     public static final String EXTRA_ROUND = "roundNumber";
     public static final String EXTRA_ROUND_LABEL = "roundLabel";
     public static final String EXTRA_DATE = "workDate";
+    public static final String EXTRA_LINES = "availableLines";
 
     private ApiClient apiClient;
     private DraftStore draftStore;
@@ -52,12 +56,16 @@ public class InspectionActivity extends AppCompatActivity {
     private boolean uploading;
     private boolean submitted;
     private final List<VehicleModel> models = new ArrayList<>();
+    private final List<HmiModelMapping> hmiMappings = new ArrayList<>();
+    private final List<Integer> availableLines = new ArrayList<>();
 
     private TextView positionText;
     private TextView draftStatusText;
+    private LinearLayout lineRow;
     private RadioGroup lineGroup;
     private RadioButton line1Button;
     private RadioButton line2Button;
+    private Button doubleCheckButton;
     private EditText vehicleNumberInput;
     private MaterialAutoCompleteTextView modelNameDropdown;
     private TextInputLayout modelNameLayout;
@@ -70,9 +78,11 @@ public class InspectionActivity extends AppCompatActivity {
     private Button nextButton;
     private Button scanButton;
     private Button batchScanButton;
+    private Button hmiScanButton;
     private Button refreshModelsButton;
     private ActivityResultLauncher<Intent> scanLauncher;
     private ActivityResultLauncher<Intent> batchScanLauncher;
+    private ActivityResultLauncher<Intent> hmiScanLauncher;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -93,10 +103,19 @@ public class InspectionActivity extends AppCompatActivity {
             workDate = LocalDate.now().toString();
         }
         bindViews();
+        ArrayList<Integer> intentLines = getIntent().getIntegerArrayListExtra(EXTRA_LINES);
+        availableLines.clear();
+        if (intentLines == null || intentLines.isEmpty()) {
+            availableLines.add(1);
+        } else {
+            availableLines.addAll(intentLines);
+        }
+        configureLines();
         String roundLabel = getIntent().getStringExtra(EXTRA_ROUND_LABEL);
         ((TextView) findViewById(R.id.inspectionTitleText)).setText(
-                roundLabel == null || roundLabel.isEmpty() ? roundTitle(roundNumber) : roundLabel);        ((TextView) findViewById(R.id.inspectionDateText)).setText("日期：" + workDate + "（每轮恰好5辆）");
-        loadDraft(1);
+                roundLabel == null || roundLabel.isEmpty() ? roundTitle(roundNumber) : roundLabel);
+        ((TextView) findViewById(R.id.inspectionDateText)).setText("日期：" + workDate + "（每轮恰好5辆）");
+        loadDraft(availableLines.contains(1) ? 1 : availableLines.get(0));
         bindVehicle();
         installListeners();
         scanLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
@@ -109,6 +128,12 @@ public class InspectionActivity extends AppCompatActivity {
                 result -> {
                     if (result.getResultCode() == RESULT_OK && result.getData() != null) {
                         applyBatchScanResult(result.getData());
+                    }
+                });
+        hmiScanLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+                result -> {
+                    if (result.getResultCode() == RESULT_OK && result.getData() != null) {
+                        applyHmiScanResult(result.getData());
                     }
                 });
     }
@@ -126,6 +151,7 @@ public class InspectionActivity extends AppCompatActivity {
     protected void onResume() {
         super.onResume();
         loadModels(false);
+        loadHmiMappings();
     }
 
     @Override
@@ -137,9 +163,11 @@ public class InspectionActivity extends AppCompatActivity {
     private void bindViews() {
         positionText = findViewById(R.id.vehiclePositionText);
         draftStatusText = findViewById(R.id.draftStatusText);
+        lineRow = findViewById(R.id.lineRow);
         lineGroup = findViewById(R.id.lineGroup);
         line1Button = findViewById(R.id.line1Button);
         line2Button = findViewById(R.id.line2Button);
+        doubleCheckButton = findViewById(R.id.doubleCheckButton);
         vehicleNumberInput = findViewById(R.id.vehicleNumberInput);
         modelNameDropdown = findViewById(R.id.modelNameDropdown);
         modelNameLayout = findViewById(R.id.modelNameLayout);
@@ -152,7 +180,18 @@ public class InspectionActivity extends AppCompatActivity {
         nextButton = findViewById(R.id.nextButton);
         scanButton = findViewById(R.id.scanButton);
         batchScanButton = findViewById(R.id.batchScanButton);
+        hmiScanButton = findViewById(R.id.hmiScanButton);
         refreshModelsButton = findViewById(R.id.refreshModelsButton);
+    }
+
+    private void configureLines() {
+        boolean showLines = availableLines.size() > 1;
+        lineGroup.setVisibility(showLines ? View.VISIBLE : View.GONE);
+        line1Button.setEnabled(availableLines.contains(1));
+        line2Button.setEnabled(availableLines.contains(2));
+        if (availableLines.size() == 1) {
+            lineGroup.check(availableLines.get(0) == 2 ? R.id.line2Button : R.id.line1Button);
+        }
     }
 
     private void installListeners() {
@@ -184,6 +223,19 @@ public class InspectionActivity extends AppCompatActivity {
             issueNoteLayout.setVisibility(checkedId == R.id.statusNokButton ? View.VISIBLE : View.GONE);
             if (!binding) {
                 saveCurrentVehicle();
+            }
+        });
+        doubleCheckButton.setOnClickListener(view -> {
+            if (uploading) {
+                return;
+            }
+            draft.doubleCheck = !draft.doubleCheck;
+            draftStore.save(userKey, draft);
+            updateDoubleCheckView();
+        });
+        hmiScanButton.setOnClickListener(view -> {
+            if (!uploading) {
+                hmiScanLauncher.launch(new Intent(this, HmiScanActivity.class));
             }
         });
         previousButton.setOnClickListener(view -> {
@@ -261,6 +313,19 @@ public class InspectionActivity extends AppCompatActivity {
         lineGroup.check(line == 2 ? R.id.line2Button : R.id.line1Button);
         binding = false;
         draftStore.save(userKey, draft);
+        updateDoubleCheckView();
+    }
+
+    private void updateDoubleCheckView() {
+        if (doubleCheckButton == null || draft == null) {
+            return;
+        }
+        doubleCheckButton.setText(draft.doubleCheck ? "双倍检查：开" : "双倍检查：关");
+        doubleCheckButton.setEnabled(!uploading);
+        if (!uploading) {
+            nextButton.setText(currentIndex == 4
+                    ? (draft.doubleCheck ? "确认追加（双倍）" : "确认上传") : "下一辆");
+        }
     }
 
     private void bindVehicle() {
@@ -277,8 +342,10 @@ public class InspectionActivity extends AppCompatActivity {
         }
         issueNoteLayout.setVisibility("NOK".equals(vehicle.status) ? View.VISIBLE : View.GONE);
         previousButton.setEnabled(currentIndex > 0 && !uploading);
-        nextButton.setText(currentIndex == 4 ? R.string.upload : R.string.next);
-        draftStatusText.setText(draft.lineNumber + "#线 · 本机草稿已保存（用户＋日期＋轮次＋线别）");
+        nextButton.setText(currentIndex == 4
+                ? (draft.doubleCheck ? "确认追加（双倍）" : "确认上传") : "下一辆");
+        String doubleText = draft.doubleCheck ? "｜双倍检查已开启，再次上传会追加" : "";
+        draftStatusText.setText(draft.lineNumber + "#线 · 本机草稿已保存（用户＋日期＋轮次＋线别）" + doubleText);
         binding = false;
     }
 
@@ -370,7 +437,7 @@ public class InspectionActivity extends AppCompatActivity {
         }
         setUploading(true);
         List<DraftVehicle> vehicles = new ArrayList<>(draft.vehicles);
-        apiClient.submitBatch(workDate, roundNumber, draft.lineNumber, vehicles,
+        apiClient.submitBatch(workDate, roundNumber, draft.lineNumber, vehicles, draft.doubleCheck,
                 new ApiClient.Callback<List<InspectionRecord>>() {
                     @Override
                     public void onSuccess(List<InspectionRecord> records) {
@@ -394,13 +461,16 @@ public class InspectionActivity extends AppCompatActivity {
     private void setUploading(boolean value) {
         uploading = value;
         nextButton.setEnabled(!value);
-        nextButton.setText(value ? "正在上传…" : (currentIndex == 4 ? "确认上传" : "下一辆"));
+        nextButton.setText(value ? "正在上传…" : (currentIndex == 4
+                ? (draft.doubleCheck ? "确认追加（双倍）" : "确认上传") : "下一辆"));
         previousButton.setEnabled(!value && currentIndex > 0);
         scanButton.setEnabled(!value);
         batchScanButton.setEnabled(!value);
+        hmiScanButton.setEnabled(!value);
         refreshModelsButton.setEnabled(!value);
-        line1Button.setEnabled(!value);
-        line2Button.setEnabled(!value);
+        doubleCheckButton.setEnabled(!value);
+        line1Button.setEnabled(!value && availableLines.contains(1));
+        line2Button.setEnabled(!value && availableLines.contains(2));
     }
 
     private void applyScanResult(Intent data) {
@@ -475,6 +545,85 @@ public class InspectionActivity extends AppCompatActivity {
             message += "；其中 " + unresolved + " 辆车型代码不在车型库中，请让管理员添加后刷新";
         }
         Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private void applyHmiScanResult(Intent data) {
+        ArrayList<String> numbers = data.getStringArrayListExtra(HmiScanActivity.RESULT_VEHICLE_NUMBERS);
+        ArrayList<String> values = data.getStringArrayListExtra(HmiScanActivity.RESULT_MODEL_VALUES);
+        int count = numbers == null ? 0 : numbers.size();
+        if (count == 0) {
+            Toast.makeText(this, "没有识别到HMI车号，请调整选择框后重试", Toast.LENGTH_LONG).show();
+            return;
+        }
+        int filled = Math.min(5, count);
+        int unresolved = 0;
+        for (int i = 0; i < filled; i++) {
+            DraftVehicle vehicle = draft.vehicles.get(i);
+            String number = nullToEmpty(numbers.get(i));
+            String rawModel = values != null && i < values.size() ? nullToEmpty(values.get(i)) : "";
+            if (!number.isEmpty()) {
+                vehicle.vehicleNumber = number;
+            }
+            vehicle.modelCode = "";
+            vehicle.vehicleModel = "";
+            String pviCode = resolveHmiModelCode(rawModel);
+            if (!pviCode.isEmpty()) {
+                for (VehicleModel model : models) {
+                    if (model.active && pviCode.equalsIgnoreCase(model.code)) {
+                        vehicle.modelCode = model.code;
+                        vehicle.vehicleModel = model.modelName;
+                        break;
+                    }
+                }
+            }
+            if (vehicle.modelCode.isEmpty()) {
+                unresolved++;
+            }
+        }
+        currentIndex = 0;
+        draft.currentIndex = 0;
+        draftStore.save(userKey, draft);
+        bindVehicle();
+        String message = "已按HMI识别 " + filled + " 辆，请逐车核对";
+        if (unresolved > 0) {
+            message += "；其中 " + unresolved + " 辆车型未配置HMI转换，请到管理员页完善";
+        }
+        Toast.makeText(this, message, Toast.LENGTH_LONG).show();
+    }
+
+    private String resolveHmiModelCode(String rawValue) {
+        String value = nullToEmpty(rawValue).trim().toUpperCase(Locale.ROOT);
+        if (value.isEmpty()) {
+            return "";
+        }
+        for (HmiModelMapping mapping : hmiMappings) {
+            if (mapping.hmiValue != null && mapping.hmiValue.trim().equalsIgnoreCase(value)) {
+                return mapping.pviCode == null ? "" : mapping.pviCode.trim();
+            }
+        }
+        for (VehicleModel model : models) {
+            if (model.active && model.code != null && model.code.equalsIgnoreCase(value)) {
+                return model.code;
+            }
+        }
+        return "";
+    }
+
+    private void loadHmiMappings() {
+        apiClient.listHmiMappings(new ApiClient.Callback<List<HmiModelMapping>>() {
+            @Override
+            public void onSuccess(List<HmiModelMapping> values) {
+                hmiMappings.clear();
+                if (values != null) {
+                    hmiMappings.addAll(values);
+                }
+            }
+
+            @Override
+            public void onError(String message) {
+                // HMI mappings are optional; barcode scanning and manual entry still work.
+            }
+        });
     }
 
     private void loadModels(boolean notify) {

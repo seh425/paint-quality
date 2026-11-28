@@ -13,5 +13,6 @@ public record RecordBatchRequest(
         @NotNull LocalDate workDate,
         @NotNull @Min(1) @Max(5) Integer roundNumber,
         @NotNull @Min(1) @Max(2) Integer lineNumber,
+        boolean doubleCheck,
         @NotNull @Size(min = 5, max = 5) List<@NotNull @Valid VehicleInput> vehicles) {
 }

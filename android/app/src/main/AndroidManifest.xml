@@ -25,9 +25,9 @@
         android:theme="@style/Theme.PaintShopQuality"
         android:usesCleartextTraffic="true">
         <activity android:name=".ui.AdminActivity" android:exported="false" />
-        <activity android:name=".ui.AreaSelectionActivity" android:exported="false" />
         <activity android:name=".ui.RecordsActivity" android:exported="false" />
         <activity android:name=".ui.ScanActivity" android:exported="false" />
+        <activity android:name=".ui.HmiScanActivity" android:exported="false" />
         <activity android:name=".ui.InspectionActivity" android:exported="false" />
         <activity android:name=".ui.RoundActivity" android:exported="false" />
         <activity android:name=".ui.LoginActivity" android:exported="true">

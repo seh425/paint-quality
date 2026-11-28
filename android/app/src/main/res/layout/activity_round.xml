@@ -48,6 +48,38 @@
                 android:layout_marginTop="6dp"
                 android:layout_marginBottom="12dp"
                 android:textStyle="bold" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="责任区域"
+                android:textColor="@color/navy"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+            <Spinner
+                android:id="@+id/areaSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp"
+                android:layout_marginBottom="8dp" />
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="检查区域"
+                android:textColor="@color/navy"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+            <Spinner
+                android:id="@+id/checkAreaSpinner"
+                android:layout_width="match_parent"
+                android:layout_height="48dp" />
+            <TextView
+                android:id="@+id/areasStatusText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="12dp"
+                android:text="选择区域后会自动保存，并在下方显示对应检查轮次"
+                android:textColor="#6B7A90"
+                android:textSize="12sp" />
             <Button
                 android:id="@+id/sharedRecordsButton"
                 android:layout_width="match_parent"

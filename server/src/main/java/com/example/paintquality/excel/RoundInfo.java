@@ -1,4 +1,6 @@
 package com.example.paintquality.excel;
 
-public record RoundInfo(int number, String sequence, String timeArea) {
+import java.util.List;
+
+public record RoundInfo(int number, String sequence, String timeArea, List<Integer> lines) {
 }

@@ -56,8 +56,7 @@ public class ExcelService {
     }
 
     public List<LocalDate> availableDates() {
-        LocalDate today = LocalDate.now(clock);
-        return List.of(today, today.minusDays(1), today.minusDays(2));
+        return recordService.retainedDates();
     }
 
     public Path generate(LocalDate workDate, String area) {
@@ -108,9 +107,8 @@ public class ExcelService {
     }
 
     private void validateDate(LocalDate workDate) {
-        LocalDate today = LocalDate.now(clock);
-        if (workDate.isAfter(today) || workDate.isBefore(today.minusDays(2))) {
-            throw ApiException.badRequest("只能生成今天、昨天或前天的Excel");
+        if (!availableDates().contains(workDate)) {
+            throw ApiException.badRequest("只能导出最近7个有检查记录的日期");
         }
     }
 
@@ -134,8 +132,13 @@ public class ExcelService {
         cell(sheet, rowNumber, firstColumn + 1).setCellValue(record.getVehicleModel());
         Cell statusCell = cell(sheet, rowNumber, firstColumn + 2);
         statusCell.removeCellComment();
-        statusCell.setCellValue(record.getStatus().name());
-        if (record.getStatus() == InspectionStatus.NOK) {
+        String statusText = record.getStatusText();
+        if (statusText == null || statusText.isBlank()) {
+            statusText = record.getStatus() == null ? "" : record.getStatus().name();
+        }
+        statusCell.setCellValue(statusText);
+        if (statusText.contains("NOK") && record.getIssueNote() != null
+                && !record.getIssueNote().isBlank()) {
             CreationHelper helper = workbook.getCreationHelper();
             ClientAnchor anchor = helper.createClientAnchor();
             anchor.setCol1(statusCell.getColumnIndex());
